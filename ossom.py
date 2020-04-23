@@ -20,14 +20,14 @@ def _max_abs(arr: _np.ndarray):
     return _np.max(_np.abs(arr))
 
 
-def _noise(samplerate: int = 44100, tlen: float = 5.0, nchannels: int = 1):
+def _noise(gain: float = 0.707, samplerate: int = 44100, tlen: float = 5.0, nchannels: int = 1):
     nois = _np.random.randn(int(samplerate*tlen), nchannels)
     for col in range(nois.shape[1]):
         nois[:, col] /= _max_abs(nois[:, col])
     return nois
 
 
-def _sweep(f1: float = 2e1, f2: float = 2e4, tlen: float = 5.0, phi: float = 0.0,
+def _sweep(gain: float = 0.707, f1: float = 2e1, f2: float = 2e4, tlen: float = 5.0, phi: float = 0.0,
            fs: int = 44100, novak: bool = True):
     if novak:
         L = _np.round(f1 * tlen / _np.log(f2/f1)) / f1
@@ -140,9 +140,9 @@ class Streamer(object):
             None.
 
         """
-        with spk.player(self.samplerate, channels=self.channels,
+        with self.spk.player(self.samplerate, channels=self.channels,
                         blocksize=self.blocksize) as p, \
-            mic.recorder(self.samplerate, channels=self.channels,
+            self.mic.recorder(self.samplerate, channels=self.channels,
                          blocksize=self.blocksize) as r:
             rec = []
             while True:
@@ -181,13 +181,17 @@ if __name__ == "__main__":
     import sys
     try:
         aud = sys.argv[1]
+        gain = sys.argv[2]
     except IndexError:
-        aud = 'noise'
+        if not aud:
+            aud = 'sweep'
+        if not gain:
+            gain = 0.5
 
     if aud == 'noise':
-        audio = _noise()
+        audio = _noise(gain)
     elif aud == 'sweep':
-        audio = _sweep()
+        audio = _sweep(gain)
     else:
         raise ValueError
 
