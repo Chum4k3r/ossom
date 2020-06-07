@@ -12,7 +12,7 @@ import numba as _nb
 
 
 @_nb.njit(parallel=True)
-def maxabs(arr: _np.ndarray) -> _np.ndarray:
+def _max_abs(arr: _np.ndarray) -> _np.ndarray:
     """
     Maximum of the absolute of array values.
 
