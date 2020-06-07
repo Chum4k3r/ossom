@@ -7,12 +7,12 @@ Created on Tue May  5 00:34:36 2020
 @author: joaovitor
 """
 
-import numpy as np
-import numba as nb
+import numpy as _np
+import numba as _nb
 
 
-@nb.njit
-def maxabs(arr: np.array) -> int or float:
+@_nb.njit(parallel=True)
+def maxabs(arr: _np.ndarray) -> _np.ndarray:
     """
     Maximum of the absolute of array values.
 
@@ -23,11 +23,14 @@ def maxabs(arr: np.array) -> int or float:
         int or float: Maximum of the absolute values.
 
     """
-    return np.max(np.abs(arr))
+    ma = _np.zeros((1, arr.shape[1]), dtype=arr.dtype)
+    for col in _nb.prange(ma.shape[1]):
+        ma[:, col] = _np.max(_np.abs(arr[:, col]))
+    return ma
 
 
-@nb.njit
-def arr2rms(arr: np.array) -> float:
+@_nb.njit(parallel=True)
+def _rms(samples: _np.ndarray) -> _np.ndarray:
     """
     Root of the mean of a squared array.
 
@@ -38,28 +41,13 @@ def arr2rms(arr: np.array) -> float:
         float: RMS of data.
 
     """
-    return (np.mean(arr**2))**0.5
+    rms = _np.zeros((1, samples.shape[1]), dtype=samples.dtype)
+    for col in _nb.prange(rms.shape[1]):
+        rms[:, col] = _np.mean(samples[:, col]**2)**0.5
+    return rms
 
-
-@nb.njit
-def rms2dB(rms: float, power: bool = False, ref: float = 1.0) -> float:
-    """
-    RMS to decibel.
-
-    Args:
-        rms (float): The value to be scaled.
-        power (bool, optional): If array is a power signal. Defaults to False.
-        ref (float, optional): Reference value for decibel scale. Defaults to 1.0.
-
-    Returns:
-        float: Decibel scaled value.
-
-    """
-    return (10 if power else 20) * np.log10(rms / ref)
-
-
-@nb.njit
-def arr2dB(arr: np.array, power: bool = False, ref: float = 1.) -> float:
+@_nb.njit
+def _dB(samples: _np.ndarray, power: bool = False, ref: float = 1.0) -> _np.ndarray:
     """
     Calculate the decibel level of an array of data.
 
@@ -72,5 +60,4 @@ def arr2dB(arr: np.array, power: bool = False, ref: float = 1.) -> float:
         float: Decibel scaled value.
 
     """
-    return rms2dB(arr2rms(arr), power, ref)
-
+    return (10 if power else 20) * _np.log10(_rms(samples) / ref)
