@@ -1,2 +1,4 @@
-# ossom
-Python audio mixer based on bastibe/SoundCard module
+## ossom
+
+View audio data in real time.
+
