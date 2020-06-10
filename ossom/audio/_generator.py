@@ -2,7 +2,7 @@
 """Audio Generator."""
 
 import numpy as np
-from audio import Audio
+from ._audio import Audio
 from multiprocessing import Event
 
 

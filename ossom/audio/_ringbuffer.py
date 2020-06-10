@@ -8,7 +8,7 @@ Created on Wed May 27 00:43:33 2020.
 import numpy as np
 import multiprocessing as mp
 from multiprocessing import shared_memory as sm
-from audio import Audio
+from ._audio import Audio
 
 
 class AudioRingBuffer(Audio, sm.SharedMemory):

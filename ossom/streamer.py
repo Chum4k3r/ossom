@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Sun Jun  7 15:37:06 2020
@@ -9,7 +8,7 @@ Created on Sun Jun  7 15:37:06 2020
 import numpy as _np
 import sounddevice as _sd
 import threading
-from audio import AudioRingBuffer
+from .audio import AudioRingBuffer
 from typing import List, Union
 
 
@@ -141,8 +140,11 @@ class _CallbackContext(object):  # (AudioRingBuffer):  # TODO: Fazer o contexto 
         self.frame += self.blocksize
         return
 
-    def finished_callback(self):
+    def finished_callback(self):    # TODO> close stream!
         self.event.set()
+        print(f"Exiting {self}.")
+        self.stop()
+        self.reset()
         return
 
     def start_stream(self, StreamClass, samplerate, channels, dtype, callback,
@@ -173,6 +175,13 @@ class _CallbackContext(object):  # (AudioRingBuffer):  # TODO: Fazer o contexto 
             self.stream.close(ignore_errors)
         return self.status if self.status else None
 
+    def stop(self, ignore_errors=True):
+        """Stop streaming of audio."""
+        self.stream.stop(ignore_errors)
+        self.stream.close(ignore_errors)
+        return
+
+
 
 class _Streamer(AudioRingBuffer, _CallbackContext):
     """Base streamer class."""
@@ -196,12 +205,6 @@ class _Streamer(AudioRingBuffer, _CallbackContext):
             raise TypeError("Device should be a number, or a string, a pair of numbers, or of strings")
         else:
             self._device = dev
-        return
-
-    def stop(self, ignore_errors=True):
-        """Stop streaming of audio."""
-        self.stream.stop(ignore_errors)
-        self.stream.close(ignore_errors)
         return
 
     def callback(self):
@@ -256,7 +259,7 @@ class Recorder(_Streamer):
         recsamples = int(_np.ceil(tlen*self.samplerate)) if tlen is not None else self.nsamples
         self.frames = self.check_out(self.data, recsamples, self.nchannels, self.data.dtype, self.channels)
         self.start_stream(_sd.InputStream, self.samplerate, self.input_channels,
-                          self.input_dtype, self.callback, blocking, device=self.device, latency=config.latency)
+                          self.input_dtype, self.callback, blocking, device=self.device, latency=config.latency[0])
         return
 
     def callback(self, indata, frames, time, status):
@@ -288,7 +291,7 @@ class Player(_Streamer):
         self.frames = self.check_data(audio.data, self.channels, self.device)
         self.start_stream(_sd.OutputStream, self.samplerate, self.output_channels,
                          self.output_dtype, self.callback, blocking,
-                         prime_output_buffers_using_stream_callback=False, latency=config.latency)
+                         prime_output_buffers_using_stream_callback=False, latency=config.latency[1])
         return
 
     def callback(self, outdata, frames, time, status):

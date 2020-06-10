@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Provides frequency and fractional octave frequency bands functionalities.
 
