@@ -13,6 +13,7 @@ import time
 from audio import Audio, AudioGenerator, AudioRingBuffer
 from logger import Logger
 from utils import _max_abs, _rms, _dB
+from streamer import Recorder, Player
 
 
 @_nb.njit
@@ -98,6 +99,11 @@ lgr = Logger()
 runok = _mp.Event()
 
 
+r = Recorder(0)
+p = Player(0)
+
+p(ng)
+r()
 
 
 # if __name__ == "__main__":

@@ -9,9 +9,19 @@ Created on Sun Jun  7 15:37:06 2020
 import numpy as _np
 import sounddevice as _sd
 import threading
-from audio import Audio
+from audio import AudioRingBuffer
+from typing import List, Union
 
-class _CallbackContext(object):
+
+config = _sd.default
+config.samplerate = 48000
+config.channels = 2, 2
+config.latency = 'low', 'low'
+config.blocksize = 256
+config.dtype = _np.float32().dtype
+
+
+class _CallbackContext(object):  # (AudioRingBuffer):  # TODO: Fazer o contexto herdar AudioRingBuffer
     """Base class for specific stream callbacks."""
 
     blocksize = None
@@ -54,7 +64,7 @@ class _CallbackContext(object):
         if len(mapping) + len(silent_channels) != channels:
             raise ValueError('each channel may only appear once in mapping')
 
-        self.data = data
+        self.data[:] = data[:]
         self.output_channels = channels
         self.output_dtype = dtype
         self.output_mapping = mapping
@@ -164,15 +174,131 @@ class _CallbackContext(object):
         return self.status if self.status else None
 
 
-class Recorder(_CallbackContext, Audio):
-    """Audio recorder object."""
+class _Streamer(AudioRingBuffer, _CallbackContext):
+    """Base streamer class."""
 
-    def __init__(self, nsamples, samplerate, channelmap, dtype, blocking, **kwargs):
+    def __init__(self, device: List[int or str], bufsize: int, samplerate: int,
+                 channelmap: List[int], blocksize: int, dtype: _np.dtype, loop: bool):
         _CallbackContext.__init__(self)
-        self.nsamples = self.check_out(None, nsamples, None, dtype, channelmap)
-        Audio.__init__(self.out, samplerate)
+        self.channels = _np.array(channelmap, copy=True).tolist()
+        self.device = device
+        AudioRingBuffer.__init__(self, None, samplerate, bufsize, len(self.channels), blocksize, dtype)
         return
 
-    def start(self):
-        self.start_stream(_sd.InputStream, self.samplerate)
+    @property
+    def device(self) -> int or str:
+        """The audio device."""
+        return self._device
 
+    @device.setter
+    def device(self, dev: Union[int, str, List[int], List[str]]):
+        if type(dev) not in (list, tuple, int, str):
+            raise TypeError("Device should be a number, or a string, a pair of numbers, or of strings")
+        else:
+            self._device = dev
+        return
+
+    def stop(self, ignore_errors=True):
+        """Stop streaming of audio."""
+        self.stream.stop(ignore_errors)
+        self.stream.close(ignore_errors)
+        return
+
+    def callback(self):
+        """Stream callback."""
+        pass
+
+    def reset(self):
+        """Reset data counter(s)."""
+        pass
+
+
+class Recorder(_Streamer):
+    """Audio recorder object."""
+
+    def __init__(self, device: List[int or str] = config.device[0], samplerate: int = config.samplerate,
+                 bufsize: int = 5*config.samplerate, channelmap: List[int] = [1, 2],
+                 blocksize: int = config.blocksize, dtype: _np.dtype = config.dtype[0], loop: bool = False):
+        """
+        Creates an object capable of recording audio using its `__call__` method.
+
+            >>> r = Recorder()  # creates a recorder object
+            >>> r()  # records data during 5 second by default
+            >>> a = r.get_audio()  # retrieves recorded audio
+
+
+        Parameters
+        ----------
+        device : List[int or str]
+            Sound device.
+        bufsize : int, optional
+            Total size number of samples to allocate as memory. The default is 48000.
+        samplerate : int, optional
+            Sample rate. The default is 48000.
+        channelmap : List[int], optional
+            List of hardware channels to record, startin from 1. The default is [1, 2].
+        blocksize : int, optional
+            Latency. The default is 256.
+        dtype : _np.dtype, optional
+            Recorded array data type. The default is _np.float32().dtype.
+        blocking : bool, optional
+            If set to True, wait for recording before returning from call. The default is False.
+
+        Returns
+        -------
+        None.
+
+        """
+        _Streamer.__init__(self, device, bufsize, samplerate, channelmap, blocksize, dtype, loop)
+        return
+
+    def __call__(self, tlen: float = None, blocking: bool = False):
+        recsamples = int(_np.ceil(tlen*self.samplerate)) if tlen is not None else self.nsamples
+        self.frames = self.check_out(self.data, recsamples, self.nchannels, self.data.dtype, self.channels)
+        self.start_stream(_sd.InputStream, self.samplerate, self.input_channels,
+                          self.input_dtype, self.callback, blocking, device=self.device, latency=config.latency)
+        return
+
+    def callback(self, indata, frames, time, status):
+        assert len(indata) == frames
+        self.callback_enter(status, indata)
+        self.read_indata(indata)
+        self.callback_exit()
+        self.widx = self.frame
+        if self.is_full:
+            raise _sd.CallbackAbort
+        return
+
+    def reset(self):
+        self.widx = self.frame = 0
+        return
+
+
+class Player(_Streamer):
+    """Audio player object."""
+
+    def __init__(self, device: List[int or str] = config.device[0], samplerate: int = config.samplerate,
+                 bufsize: int = 5*config.samplerate, channelmap: List[int] = [1, 2],
+                 blocksize: int = config.blocksize, dtype: _np.dtype = config.dtype[1], loop: bool = False):
+        _Streamer.__init__(self, device, bufsize, samplerate, channelmap, blocksize, dtype, loop)
+        return
+
+    def __call__(self, audio, blocking: bool = False):
+        # TODO: Checar se o objeto de áudio realmente é compativel com o reprodutor
+        self.frames = self.check_data(audio.data, self.channels, self.device)
+        self.start_stream(_sd.OutputStream, self.samplerate, self.output_channels,
+                         self.output_dtype, self.callback, blocking,
+                         prime_output_buffers_using_stream_callback=False, latency=config.latency)
+        return
+
+    def callback(self, outdata, frames, time, status):
+        assert len(outdata) == frames
+        self.callback_enter(status, outdata)
+        self.write_outdata(outdata)
+        self.ridx = self.frame
+        self.callback_exit()
+        return
+
+    def reset(self):
+        self.ridx = self.frame = 0
+        return

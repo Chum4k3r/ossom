@@ -41,17 +41,22 @@ class AudioRingBuffer(Audio, sm.SharedMemory):
         None.
 
         """
-        if name is None:
-            sz = dtype.itemsize * nsamples * nchannels
-            sm.SharedMemory.__init__(self, create=True, size=sz)
+        sz = dtype.itemsize * nsamples * nchannels
+
+        if name is not None:
+            try:
+                sm.SharedMemory.__init__(self, name)
+            except FileNotFoundError:
+                sm.SharedMemory.__init__(self, name, create=True)
         else:
-            sm.SharedMemory.__init__(self, name)
+            sm.SharedMemory.__init__(self, create=True, size=sz)
+
         buffer = np.ndarray((nsamples, nchannels),
                             dtype=dtype, buffer=self.buf)
         Audio.__init__(self, buffer, samplerate)
         self._windex = mp.Value('i', int())
-        self._rindex = mp.Value('i', int())
-        self._rbsize = rbsize
+        # self._rindex = mp.Value('i', int()
+        # self._rbsize = rbsize
         self._full = mp.Event()
         self._full.clear()
         return
@@ -70,42 +75,40 @@ class AudioRingBuffer(Audio, sm.SharedMemory):
     @widx.setter
     def widx(self, n):
         self._windex.value = n
-        if self._windex.value == self.nsamples:
-            self.full.set()
-        elif self._windex.value > self.nsamples:
-            raise StopIteration
+        if self._windex.value >= self.nsamples:
+            self._full.set()
         return
 
-    @property
-    def ridx(self) -> int:
-        """Read data index."""
-        return self._rindex.value
+    # @property
+    # def ridx(self) -> int:
+    #     """Read data index."""
+    #     return self._rindex.value
 
-    @ridx.setter
-    def ridx(self, n):
-        self._rindex.value = n
-        return
+    # @ridx.setter
+    # def ridx(self, n):
+    #     self._rindex.value = n
+    #     return
 
-    @property
-    def rbsize(self) -> int:
-        """Read data index."""
-        return self._rbsize
+    # @property
+    # def rbsize(self) -> int:
+    #     """Read data index."""
+    #     return self._rbsize
 
-    @property
-    def ready2read(self) -> int or None:
-        """
-        How many samples are ready to read.
+    # @property
+    # def ready2read(self) -> int or None:
+    #     """
+    #     How many samples are ready to read.
 
-        If the write index is smaller than read index returns None
+    #     If the write index is smaller than read index returns None
 
-        Returns
-        -------
-        int or None
-            DESCRIPTION.
+    #     Returns
+    #     -------
+    #     int or None
+    #         DESCRIPTION.
 
-        """
-        dif = self.widx - self.ridx
-        return dif if dif > 0 else 0
+    #     """
+    #     dif = self.widx - self.ridx
+    #     return dif if dif > 0 else 0
 
     @property
     def is_full(self) -> bool:
@@ -134,29 +137,29 @@ class AudioRingBuffer(Audio, sm.SharedMemory):
         self.widx += wdata.shape[0]
         return
 
-    def read_next(self, nread: int = None) -> np.ndarray:
-        """
-        Read the next chunk of data from buffer.
+    # def read_next(self, nread: int = None) -> np.ndarray:
+    #     """
+    #     Read the next chunk of data from buffer.
 
-        The amount of data read each time is defined by `rbsize`.
-        Alternatively accepts `nread` to read an specific amount of samples.
-        To check how many samples can read, check `ready2read`.
+    #     The amount of data read each time is defined by `rbsize`.
+    #     Alternatively accepts `nread` to read an specific amount of samples.
+    #     To check how many samples can read, check `ready2read`.
 
-        Parameters
-        ----------
-        nread : int, optional
-            Number of samples to read. The default is None.
+    #     Parameters
+    #     ----------
+    #     nread : int, optional
+    #         Number of samples to read. The default is None.
 
-        Returns
-        -------
-        data : np.ndarray
-            The chunk of data as a numpy array.
+    #     Returns
+    #     -------
+    #     data : np.ndarray
+    #         The chunk of data as a numpy array.
 
-        """
-        nread = self._read_check(nread)
-        data = self.data[self.ridx:self.ridx+nread]
-        self.ridx += nread
-        return data
+    #     """
+    #     nread = self._read_check(nread)
+    #     data = self.data[self.ridx:self.ridx+nread]
+    #     self.ridx += nread
+    #     return data
 
     def get_audio(self) -> Audio:
         """
@@ -170,13 +173,13 @@ class AudioRingBuffer(Audio, sm.SharedMemory):
         """
         return Audio(self.data.copy(), self.samplerate)
 
-    def _read_check(self, nread: int):
-        check = False
-        if self.ridx >= self.nsamples:
-            raise StopIteration
-        elif nread is None:
-            check = True
-        return self.rbsize if check else nread
+    # def _read_check(self, nread: int):
+    #     check = False
+    #     if self.ridx >= self.nsamples:
+    #         raise StopIteration
+    #     elif nread is None:
+    #         check = True
+    #     return self.rbsize if check else nread
 
     def _write_check(self, data: np.ndarray):
         check = False
