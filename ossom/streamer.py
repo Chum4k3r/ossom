@@ -8,7 +8,7 @@ Created on Sun Jun  7 15:37:06 2020
 import numpy as _np
 import sounddevice as _sd
 import threading
-from .audio import AudioRingBuffer
+from .audio import AudioBuffer
 from typing import List, Union
 
 
@@ -183,7 +183,7 @@ class _CallbackContext(object):  # (AudioRingBuffer):  # TODO: Fazer o contexto 
 
 
 
-class _Streamer(AudioRingBuffer, _CallbackContext):
+class _Streamer(AudioBuffer, _CallbackContext):
     """Base streamer class."""
 
     def __init__(self, device: List[int or str], bufsize: int, samplerate: int,
@@ -191,7 +191,7 @@ class _Streamer(AudioRingBuffer, _CallbackContext):
         _CallbackContext.__init__(self)
         self.channels = _np.array(channelmap, copy=True).tolist()
         self.device = device
-        AudioRingBuffer.__init__(self, None, samplerate, bufsize, len(self.channels), blocksize, dtype)
+        AudioBuffer.__init__(self, None, samplerate, bufsize, len(self.channels), blocksize, dtype)
         return
 
     @property
