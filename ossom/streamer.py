@@ -9,15 +9,8 @@ import numpy as _np
 import sounddevice as _sd
 import threading
 from .audio import AudioBuffer
+from .config import config
 from typing import List, Union
-
-
-config = _sd.default
-config.samplerate = 48000
-config.channels = 2, 2
-config.latency = 'low', 'low'
-config.blocksize = 256
-config.dtype = _np.float32().dtype
 
 
 class _CallbackContext(object):  # (AudioRingBuffer):  # TODO: Fazer o contexto herdar AudioRingBuffer
