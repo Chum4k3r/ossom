@@ -60,11 +60,11 @@ class Audio(object):
     @property
     def ridx(self) -> int:
         """Read data index."""
-        return self._rindex.value
+        return self._ridx
 
     @ridx.setter
     def ridx(self, n):
-        self._rindex.value = n
+        self._ridx = n
         return
 
     @property
