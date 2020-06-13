@@ -41,9 +41,9 @@ class Audio(object):
         """Route AudioData getitem to numpy.ndarray getitem."""
         return np.ndarray.__getitem__(self.data, key)
 
-    def __setitem__(self, key, val):
-        """Route AudioData setitem to numpy.ndarray setitem."""
-        return np.ndarray.__setitem__(self.data, key, val)
+    # def __setitem__(self, key, val):
+    #     """Route AudioData setitem to numpy.ndarray setitem."""
+    #     return np.ndarray.__setitem__(self.data, key, val)
 
     def __iter__(self):
         """Iterate method."""
@@ -108,7 +108,7 @@ class Audio(object):
         return self.data.nbytes
 
 
-class AudioRingBuffer(Audio, sm.SharedMemory):
+class AudioBuffer(Audio, sm.SharedMemory):
     """Dados de áudio em memória compartilhada."""
 
     def __init__(self, name: str = None, samplerate: int = 44100,
@@ -196,15 +196,15 @@ class AudioRingBuffer(Audio, sm.SharedMemory):
 
     def get_audio(self) -> Audio:
         """
-        Extract a copy of the buffer data as an Audio object.
+        Audio object that points to shared memory buffer.
 
         Returns
         -------
         Audio
-            The buffer as an Audio object.
+            The buffer as a simple Audio object.
 
         """
-        return Audio(self.data.copy(), self.samplerate)
+        return Audio(self.data, self.samplerate)
 
     def write_next(self, data: np.ndarray) -> int or None:
         """
