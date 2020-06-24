@@ -25,10 +25,10 @@ def _noise(gain: float, samplerate: int, tlen: float, nchannels: int) -> _np.nda
 
 
 def noise(gain: float = 1/(2**0.5),
-              samplerate: int = 48000,
-              buffersize: int = 64,
-              tlen: float = 5.0,
-              nchannels: int = 2) -> Audio:
+          samplerate: int = 48000,
+          buffersize: int = 64,
+          tlen: float = 5.0,
+          nchannels: int = 2) -> Audio:
     """
     Create an AudioGenerator of random noise.
 
@@ -75,39 +75,35 @@ def noise(gain: float = 1/(2**0.5),
 #     return
 
 
-ng = noise()
+if __name__ == "__main__":
+    ng = noise()
 
-lgr = Logger()
+    lgr = Logger()
 
-print(config.list_devices())
-# input()
+    print(config.list_devices())
 
-r = Recorder()
-a = r.get_Audio()
+    print("\nEscolha os dispositivos separados por vírgula", end='')
+    try:
+        config.device = [int(dev.strip()) for dev in input("No formato IN, OUT: ").split(",")]
+    except ValueError:
+        pass
 
-p = Player()
+    r = Recorder()
+    a = r.get_Audio()
 
-# assert hex(id(a.data)) == hex(id(r.data))  # both are the same memory space
+    p = Player()
 
-p(ng)
-r(ng.duration)
+    p(ng)
+    r(ng.duration)
 
-while r.stream.active:
-    d = next(a)
-    RMS = rms(d)
-    db = dB(RMS)
-    lgr.log(f'RMS={RMS}  dB={db}')
-    time.sleep(0.125)
-lgr.end_log()
-lgr.fclose()
+    while r.stream.active:
+        d = next(a)
+        RMS = rms(d)
+        db = dB(RMS)
+        lgr.log(f'RMS={RMS}  dB={db}')
+        time.sleep(0.125)
+    lgr.end_log()
+    lgr.fclose()
 
-a = r.get_record()
-p(a, blocking=True)
-
-# if __name__ == "__main__":
-#     # aud = record()
-#     aud = playrec()
-#     # play()
-
-#     # arb.close()
-#     # arb.unlink()
+    a = r.get_record()
+    p(a, blocking=True)
