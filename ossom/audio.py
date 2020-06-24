@@ -93,6 +93,11 @@ class Audio(object):
         return self.data.shape[1]
 
     @property
+    def duration(self) -> float:
+        """Total time duration."""
+        return self.nsamples/self.samplerate
+
+    @property
     def samplesize(self) -> int:
         """Size of one sample of audio."""
         return self.data.itemsize
@@ -194,7 +199,11 @@ class AudioBuffer(Audio, sm.SharedMemory):
         """Check if ringbuffer is full or not."""
         return self._full.is_set()
 
-    def get_audio(self) -> Audio:
+    def clear(self):
+        self.data[:] = 0
+        return
+
+    def get_Audio(self, copy: bool = False) -> Audio:
         """
         Audio object that points to shared memory buffer.
 
@@ -204,7 +213,7 @@ class AudioBuffer(Audio, sm.SharedMemory):
             The buffer as a simple Audio object.
 
         """
-        return Audio(self.data, self.samplerate)
+        return Audio(self.data.copy() if copy else self.data, self.samplerate)
 
     def write_next(self, data: np.ndarray) -> int or None:
         """

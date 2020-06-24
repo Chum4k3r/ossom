@@ -8,8 +8,7 @@ Created on Sun Jun  7 15:37:06 2020
 import numpy as _np
 import sounddevice as _sd
 import threading
-from .audio import Audio, AudioBuffer
-from .__init__ import config
+from ossom import config, Audio, AudioBuffer
 from typing import List, Union, Tuple
 
 
@@ -18,12 +17,12 @@ class _Streamer(AudioBuffer):
 
     def __init__(self, name: str, device: List[int or str], bufsize: int, samplerate: int,
                  channelmap: List[int], blocksize: int, dtype: _np.dtype, loop: bool):
-        AudioBuffer.__init__(self, name, samplerate, bufsize, len(self.channels), blocksize, dtype)
         self.loop = loop
         self.event = threading.Event()
         self.status = _sd.CallbackFlags()
         self.channels = channelmap.copy()
         self.device = device
+        AudioBuffer.__init__(self, name, samplerate, bufsize, len(self.channels), blocksize, dtype)
         return
 
     @property
@@ -40,18 +39,27 @@ class _Streamer(AudioBuffer):
         return
 
     @property
-    def channels(self) -> int or str:
-        """The device usable channels."""
+    def channels(self) -> List[int]:
+        """Map of channels."""
         return self._channels
 
     @channels.setter
-    def channels(self, chmap: Union[_np.ndarray(int), List[int], Tuple[int]]):
+    def channels(self, chmap: Union[int, List[int], Tuple[int]]):
         if type(chmap) not in (_np.ndarray, list, tuple):
             raise TypeError("Channel map should be an iterable with the hardware active channels")
         else:
             self._channels = list(chmap).copy()
         return
 
+    def get_stream(self, StreamClass, samplerate, channels, dtype, callback, **kwargs):
+        # stop()  # Stop previous playback/recording
+        self.stream = StreamClass(samplerate=samplerate,
+                                  channels=channels,
+                                  dtype=dtype,
+                                  callback=callback,
+                                  finished_callback=self.finished_callback,
+                                  **kwargs)
+        return
 
     def callback_enter(self, status, data):
         """Check status and blocksize."""
@@ -65,16 +73,16 @@ class _Streamer(AudioBuffer):
         # https://github.com/numpy/numpy/pull/4246.
         # Note: using indata[:blocksize, mapping] (a.k.a. 'fancy' indexing)
         # would create unwanted copies (and probably memory allocations).
-        for target, source in enumerate(self.input_mapping):
+        for target, source in enumerate(self.channels):
             # If out.dtype is 'float64', 'float32' data is "upgraded" here:
-            self.out[self.frame:self.frame + self.blocksize, target] = \
-                indata[:self.blocksize, source]
+            self._data[self.frame:self.frame + self.blocksize, target] = \
+                indata[:self.blocksize, source - 1]  # channels starts on 1, indexes on 0
         return
 
     def write_outdata(self, outdata):
         # 'float64' data is cast to 'float32' here:
         outdata[:self.blocksize, self.output_mapping] = \
-            self.data[self.frame:self.frame + self.blocksize]
+            self.outdata[self.frame:self.frame + self.blocksize]
         outdata[:self.blocksize, self.silent_channels] = 0
         if self.loop and self.blocksize < len(outdata):
             self.frame = 0
@@ -87,26 +95,19 @@ class _Streamer(AudioBuffer):
 
     def callback_exit(self):
         if not self.blocksize:
-            raise _sd.CallbackAbort
+            raise _sd.CallbackStop
         self.frame += self.blocksize
         return
 
     def finished_callback(self):    # TODO> close stream!
         self.event.set()
-        print(f"Exiting {self}.")
-        self.stop()
         self.reset()
+        print(f"Exiting {self}.")
         return
 
-    def start_stream(self, StreamClass, samplerate, channels, dtype, callback,
-                     blocking, **kwargs):
-        # stop()  # Stop previous playback/recording
-        self.stream = StreamClass(samplerate=samplerate,
-                                  channels=channels,
-                                  dtype=dtype,
-                                  callback=callback,
-                                  finished_callback=self.finished_callback,
-                                  **kwargs)
+    def start(self, blocking: bool = False):
+        self.stop()
+        self.event.clear()
         self.stream.start()
         # global _last_callback
         # _last_callback = self
@@ -123,7 +124,7 @@ class _Streamer(AudioBuffer):
         try:
             self.event.wait()
         finally:
-            self.stream.close(ignore_errors)
+            self.stream.stop(ignore_errors)
         return self.status if self.status else None
 
     def stop(self, ignore_errors=True):
@@ -143,8 +144,8 @@ class _Streamer(AudioBuffer):
 class Recorder(_Streamer):
     """Audio recorder object."""
 
-    def __init__(self, device: List[int or str] = config.device[0], samplerate: int = config.samplerate,
-                 bufsize: int = 5*config.samplerate, channelmap: List[int] = [1, 2],
+    def __init__(self, name: str = None, device: List[int or str] = config.device[0], samplerate: int = config.samplerate,
+                 bufsize: int = 10*config.samplerate, channelmap: List[int] = [1, 2],
                  blocksize: int = config.blocksize, dtype: _np.dtype = config.dtype[0], loop: bool = False):
         """
         Creates an object capable of recording audio using its `__call__` method.
@@ -176,75 +177,82 @@ class Recorder(_Streamer):
         None.
 
         """
-        _Streamer.__init__(self, device, bufsize, samplerate, channelmap, blocksize, dtype, loop)
+        _Streamer.__init__(self, name, device, bufsize, samplerate, channelmap, blocksize, dtype, loop)
+        self.get_stream(_sd.InputStream, self.samplerate, self.nchannels,
+                  self.dtype, self.callback, device=self.device,
+                  latency=config.latency[0])
+        self.reset()
         return
 
     def __call__(self, tlen: float = None, blocking: bool = False):
-        recsamples = int(_np.ceil(tlen*self.samplerate)) if tlen is not None else self.nsamples
-        self.frames = self.check_out(self.data, recsamples, self.nchannels, self.data.dtype, self.channels)
-        self.start_stream(_sd.InputStream, self.samplerate, self.input_channels,
-                          self.input_dtype, self.callback, blocking, device=self.device,
-                          latency=config.latency[0])
+        self.frames = int(_np.ceil(tlen*self.samplerate)) if tlen is not None else self.nsamples
+        # self.frames = self.check_out(self.data, recsamples, self.nchannels, self.dtype, self.channels)
+        self.start(blocking)
         return
 
     def callback(self, indata, frames, time, status):
         assert len(indata) == frames
         self.callback_enter(status, indata)
         self.read_indata(indata)
-        self.callback_exit()
         self.widx = self.frame
-        if self.is_full:
-            raise _sd.CallbackStop
+        self.callback_exit()
         return
 
     def reset(self):
         self.widx = self.frame = 0
         return
 
-    def check_out(self, out, frames, channels, dtype, mapping):
-        """Check out, frames, channels, dtype and input mapping."""
-        # import numpy as np
-        if channels is None:
-            if mapping is None:
-                raise TypeError(
-                    'Unable to determine number of input channels')
-            channels = _sd.default.channels['input']
-        else:
-            channels = len(_np.atleast_1d(mapping))
-        if dtype is None:
-            dtype = _sd.default.dtype['input']
-        else:
-            frames, channels = out.shape
-            dtype = out.dtype
-        dtype = _sd._check_dtype(dtype)
-        mapping, channels = _sd._check_mapping(mapping, channels)
-        if out.shape[1] != len(mapping):
-            raise ValueError(
-                'number of input channels != size of input mapping')
+    def get_record(self):
+        return Audio(self.data[:self.frames].copy(), self.samplerate, self.bufsize)
 
-        self.out = out.get_buffer()
-        self.input_channels = channels
-        self.input_dtype = dtype
-        self.input_mapping = mapping
-        return frames
+    # def check_out(self, out, frames, channels, dtype, mapping):
+    #     """Check out, frames, channels, dtype and input mapping."""
+    #     # import numpy as np
+    #     if channels is None:
+    #         if mapping is None:
+    #             raise TypeError(
+    #                 'Unable to determine number of input channels')
+    #         channels = _sd.default.channels['input']
+    #     else:
+    #         channels = len(_np.atleast_1d(mapping))
+    #     if dtype is None:
+    #         dtype = _sd.default.dtype['input']
+    #     else:
+    #         frames, channels = out.shape
+    #         dtype = out.dtype
+    #     dtype = _sd._check_dtype(dtype)
+    #     mapping, channels = _sd._check_mapping(mapping, channels)
+    #     if out.shape[1] != len(mapping):
+    #         raise ValueError(
+    #             'number of input channels != size of input mapping')
+
+    #     # self.out = self.data  # Audio have data
+    #     # self.frame = 0  # AudioBuffer have ridx
+    #     # self.input_channels = channels  # Audio already have nchannels
+    #     # self.input_dtype = dtype  # Audio already have dtype
+    #     # self.input_mapping = mapping  # Streamer have channels wich are a mapping
+    #     return frames
 
 
 
 class Player(_Streamer):
     """Audio player object."""
 
-    def __init__(self, device: List[int or str] = config.device[0], samplerate: int = config.samplerate,
-                 bufsize: int = 5*config.samplerate, channelmap: List[int] = [1, 2],
+    def __init__(self, name: str = None, device: List[int or str] = config.device[0], samplerate: int = config.samplerate,
+                 bufsize: int = 10*config.samplerate, channelmap: List[int] = [1, 2],
                  blocksize: int = config.blocksize, dtype: _np.dtype = config.dtype[1], loop: bool = False):
-        _Streamer.__init__(self, device, bufsize, samplerate, channelmap, blocksize, dtype, loop)
+        _Streamer.__init__(self, name, device, bufsize, samplerate, channelmap, blocksize, dtype, loop)
+        self.get_stream(_sd.OutputStream, self.samplerate, self.channels[-1],
+                         self.dtype, self.callback,
+                         prime_output_buffers_using_stream_callback=False,
+                         latency=config.latency[1])
+        self.reset()
         return
 
     def __call__(self, audio: Audio, blocking: bool = False):
         # TODO: Checar se o objeto de áudio realmente é compativel com o reprodutor
         self.frames = self.check_data(audio.data, self.channels, self.device)
-        self.start_stream(_sd.OutputStream, self.samplerate, self.output_channels,
-                         self.output_dtype, self.callback, blocking,
-                         prime_output_buffers_using_stream_callback=False, latency=config.latency[1])
+        self.start(blocking)
         return
 
     def callback(self, outdata, frames, time, status):
@@ -262,7 +270,7 @@ class Player(_Streamer):
 
     def check_data(self, data, mapping, device):
         """Check data and output mapping."""
-        data = _np.asarray(data)
+        # data = _np.asarray(data)
         if data.ndim < 2:
             data = data.reshape(-1, 1)
         frames, channels = data.shape
@@ -285,10 +293,11 @@ class Player(_Streamer):
         if len(mapping) + len(silent_channels) != channels:
             raise ValueError('each channel may only appear once in mapping')
 
-        self.data[:] = data[:]
-        self.output_channels = channels
-        self.output_dtype = dtype
-        self.output_mapping = mapping
+        self.outdata = data
+        # self.frame = 0
+        self.output_channels = channels  # Audio have nchannels
+        self.output_dtype = dtype  # Audio have dtype
+        self.output_mapping = mapping  # Streamer have channels
         self.silent_channels = silent_channels
         return frames
 
