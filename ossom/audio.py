@@ -203,7 +203,7 @@ class AudioBuffer(Audio, sm.SharedMemory):
         self.data[:] = 0
         return
 
-    def get_Audio(self, copy: bool = False) -> Audio:
+    def get_buffer(self, buffersize: int = None, copy: bool = False) -> Audio:
         """
         Audio object that points to shared memory buffer.
 
@@ -213,7 +213,8 @@ class AudioBuffer(Audio, sm.SharedMemory):
             The buffer as a simple Audio object.
 
         """
-        return Audio(self.data.copy() if copy else self.data, self.samplerate)
+        return Audio(self.data.copy() if copy else self.data,
+                     self.samplerate, buffersize=buffersize if buffersize else self.bufsize)
 
     def write_next(self, data: np.ndarray) -> int or None:
         """

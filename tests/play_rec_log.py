@@ -21,10 +21,11 @@ def _noise(gain: float, samplerate: int, tlen: float, nchannels: int) -> _np.nda
     noise = _np.zeros(shape, dtype=_np.float32)
     noise[:] = _np.random.randn(*shape)
     noise[:, ] /= max_abs(noise)
-    return gain*noise
+    grms = 10**(gain/20)
+    return grms*noise
 
 
-def noise(gain: float = 1/(2**0.5),
+def noise(gain: float = -6,
           samplerate: int = 48000,
           buffersize: int = 64,
           tlen: float = 5.0,
@@ -89,7 +90,8 @@ if __name__ == "__main__":
         pass
 
     r = Recorder()
-    a = r.get_Audio()
+    b = r.get_buffer(buffersize=r.samplerate//8)
+    # direct access to Recorder buffer reading 0.125 s of audio on each call to next.
 
     p = Player()
 
@@ -97,13 +99,13 @@ if __name__ == "__main__":
     r(ng.duration)
 
     while r.stream.active:
-        d = next(a)
+        time.sleep(0.125)
+        d = next(b)
         RMS = rms(d)
         db = dB(RMS)
         lgr.log(f'RMS={RMS}  dB={db}')
-        time.sleep(0.125)
     lgr.end_log()
     lgr.fclose()
 
-    a = r.get_record()
+    a = r.get_record()  # Retrieves a copy of the recorded audio.
     p(a, blocking=True)
