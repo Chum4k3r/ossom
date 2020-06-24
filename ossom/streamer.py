@@ -8,92 +8,50 @@ Created on Sun Jun  7 15:37:06 2020
 import numpy as _np
 import sounddevice as _sd
 import threading
-from .audio import AudioBuffer
-from .config import config
-from typing import List, Union
+from .audio import Audio, AudioBuffer
+from .__init__ import config
+from typing import List, Union, Tuple
 
 
-class _CallbackContext(object):  # (AudioRingBuffer):  # TODO: Fazer o contexto herdar AudioRingBuffer
-    """Base class for specific stream callbacks."""
+class _Streamer(AudioBuffer):
+    """Base streamer class."""
 
-    blocksize = None
-    data = None
-    frame = 0
-    input_channels = output_channels = None
-    input_dtype = output_dtype = None
-    input_mapping = output_mapping = None
-    silent_channels = None
-
-    def __init__(self, loop=False):
-        """This is a modified copy of sounddevice._CallbackContext."""
+    def __init__(self, name: str, device: List[int or str], bufsize: int, samplerate: int,
+                 channelmap: List[int], blocksize: int, dtype: _np.dtype, loop: bool):
+        AudioBuffer.__init__(self, name, samplerate, bufsize, len(self.channels), blocksize, dtype)
         self.loop = loop
         self.event = threading.Event()
         self.status = _sd.CallbackFlags()
+        self.channels = channelmap.copy()
+        self.device = device
         return
 
-    def check_data(self, data, mapping, device):
-        """Check data and output mapping."""
-        data = _np.asarray(data)
-        if data.ndim < 2:
-            data = data.reshape(-1, 1)
-        frames, channels = data.shape
-        dtype = _sd._check_dtype(data.dtype)
-        mapping_is_explicit = mapping is not None
-        mapping, channels = _sd._check_mapping(mapping, channels)
-        if data.shape[1] == 1:
-            pass  # No problem, mono data is duplicated into arbitrary channels
-        elif data.shape[1] != len(mapping):
-            raise ValueError(
-                'number of output channels != size of output mapping')
-        # Apparently, some PortAudio host APIs duplicate mono streams to the
-        # first two channels, which is unexpected when specifying mapping=[1].
-        # In this case, we play silence on the second channel, but only if the
-        # device actually supports a second channel:
-        if (mapping_is_explicit and _np.array_equal(mapping, [0]) and
-                _sd.query_devices(device, 'output')['max_output_channels'] >= 2):
-            channels = 2
-        silent_channels = _np.setdiff1d(_np.arange(channels), mapping)
-        if len(mapping) + len(silent_channels) != channels:
-            raise ValueError('each channel may only appear once in mapping')
+    @property
+    def device(self) -> int or str:
+        """The audio device."""
+        return self._device
 
-        self.data[:] = data[:]
-        self.output_channels = channels
-        self.output_dtype = dtype
-        self.output_mapping = mapping
-        self.silent_channels = silent_channels
-        return frames
-
-    def check_out(self, out, frames, channels, dtype, mapping):
-        """Check out, frames, channels, dtype and input mapping."""
-        import numpy as np
-        if out is None:
-            if frames is None:
-                raise TypeError('frames must be specified')
-            if channels is None:
-                channels = _sd.default.channels['input']
-            if channels is None:
-                if mapping is None:
-                    raise TypeError(
-                        'Unable to determine number of input channels')
-                else:
-                    channels = len(np.atleast_1d(mapping))
-            if dtype is None:
-                dtype = _sd.default.dtype['input']
-            out = np.empty((frames, channels), dtype, order='C')
+    @device.setter
+    def device(self, dev: Union[int, str, List[int], List[str]]):
+        if type(dev) not in (list, tuple, int, str):
+            raise TypeError("Device should be a number, or a string, a pair of numbers, or of strings")
         else:
-            frames, channels = out.shape
-            dtype = out.dtype
-        dtype = _sd._check_dtype(dtype)
-        mapping, channels = _sd._check_mapping(mapping, channels)
-        if out.shape[1] != len(mapping):
-            raise ValueError(
-                'number of input channels != size of input mapping')
+            self._device = dev
+        return
 
-        self.out = out
-        self.input_channels = channels
-        self.input_dtype = dtype
-        self.input_mapping = mapping
-        return frames
+    @property
+    def channels(self) -> int or str:
+        """The device usable channels."""
+        return self._channels
+
+    @channels.setter
+    def channels(self, chmap: Union[_np.ndarray(int), List[int], Tuple[int]]):
+        if type(chmap) not in (_np.ndarray, list, tuple):
+            raise TypeError("Channel map should be an iterable with the hardware active channels")
+        else:
+            self._channels = list(chmap).copy()
+        return
+
 
     def callback_enter(self, status, data):
         """Check status and blocksize."""
@@ -171,33 +129,6 @@ class _CallbackContext(object):  # (AudioRingBuffer):  # TODO: Fazer o contexto 
     def stop(self, ignore_errors=True):
         """Stop streaming of audio."""
         self.stream.stop(ignore_errors)
-        self.stream.close(ignore_errors)
-        return
-
-
-
-class _Streamer(AudioBuffer, _CallbackContext):
-    """Base streamer class."""
-
-    def __init__(self, device: List[int or str], bufsize: int, samplerate: int,
-                 channelmap: List[int], blocksize: int, dtype: _np.dtype, loop: bool):
-        _CallbackContext.__init__(self)
-        self.channels = _np.array(channelmap, copy=True).tolist()
-        self.device = device
-        AudioBuffer.__init__(self, None, samplerate, bufsize, len(self.channels), blocksize, dtype)
-        return
-
-    @property
-    def device(self) -> int or str:
-        """The audio device."""
-        return self._device
-
-    @device.setter
-    def device(self, dev: Union[int, str, List[int], List[str]]):
-        if type(dev) not in (list, tuple, int, str):
-            raise TypeError("Device should be a number, or a string, a pair of numbers, or of strings")
-        else:
-            self._device = dev
         return
 
     def callback(self):
@@ -252,7 +183,8 @@ class Recorder(_Streamer):
         recsamples = int(_np.ceil(tlen*self.samplerate)) if tlen is not None else self.nsamples
         self.frames = self.check_out(self.data, recsamples, self.nchannels, self.data.dtype, self.channels)
         self.start_stream(_sd.InputStream, self.samplerate, self.input_channels,
-                          self.input_dtype, self.callback, blocking, device=self.device, latency=config.latency[0])
+                          self.input_dtype, self.callback, blocking, device=self.device,
+                          latency=config.latency[0])
         return
 
     def callback(self, indata, frames, time, status):
@@ -262,12 +194,40 @@ class Recorder(_Streamer):
         self.callback_exit()
         self.widx = self.frame
         if self.is_full:
-            raise _sd.CallbackAbort
+            raise _sd.CallbackStop
         return
 
     def reset(self):
         self.widx = self.frame = 0
         return
+
+    def check_out(self, out, frames, channels, dtype, mapping):
+        """Check out, frames, channels, dtype and input mapping."""
+        # import numpy as np
+        if channels is None:
+            if mapping is None:
+                raise TypeError(
+                    'Unable to determine number of input channels')
+            channels = _sd.default.channels['input']
+        else:
+            channels = len(_np.atleast_1d(mapping))
+        if dtype is None:
+            dtype = _sd.default.dtype['input']
+        else:
+            frames, channels = out.shape
+            dtype = out.dtype
+        dtype = _sd._check_dtype(dtype)
+        mapping, channels = _sd._check_mapping(mapping, channels)
+        if out.shape[1] != len(mapping):
+            raise ValueError(
+                'number of input channels != size of input mapping')
+
+        self.out = out.get_buffer()
+        self.input_channels = channels
+        self.input_dtype = dtype
+        self.input_mapping = mapping
+        return frames
+
 
 
 class Player(_Streamer):
@@ -279,7 +239,7 @@ class Player(_Streamer):
         _Streamer.__init__(self, device, bufsize, samplerate, channelmap, blocksize, dtype, loop)
         return
 
-    def __call__(self, audio, blocking: bool = False):
+    def __call__(self, audio: Audio, blocking: bool = False):
         # TODO: Checar se o objeto de áudio realmente é compativel com o reprodutor
         self.frames = self.check_data(audio.data, self.channels, self.device)
         self.start_stream(_sd.OutputStream, self.samplerate, self.output_channels,
@@ -298,3 +258,37 @@ class Player(_Streamer):
     def reset(self):
         self.ridx = self.frame = 0
         return
+
+
+    def check_data(self, data, mapping, device):
+        """Check data and output mapping."""
+        data = _np.asarray(data)
+        if data.ndim < 2:
+            data = data.reshape(-1, 1)
+        frames, channels = data.shape
+        dtype = _sd._check_dtype(data.dtype)
+        mapping_is_explicit = mapping is not None
+        mapping, channels = _sd._check_mapping(mapping, channels)
+        if data.shape[1] == 1:
+            pass  # No problem, mono data is duplicated into arbitrary channels
+        elif data.shape[1] != len(mapping):
+            raise ValueError(
+                'number of output channels != size of output mapping')
+        # Apparently, some PortAudio host APIs duplicate mono streams to the
+        # first two channels, which is unexpected when specifying mapping=[1].
+        # In this case, we play silence on the second channel, but only if the
+        # device actually supports a second channel:
+        if (mapping_is_explicit and _np.array_equal(mapping, [0]) and
+                _sd.query_devices(device, 'output')['max_output_channels'] >= 2):
+            channels = 2
+        silent_channels = _np.setdiff1d(_np.arange(channels), mapping)
+        if len(mapping) + len(silent_channels) != channels:
+            raise ValueError('each channel may only appear once in mapping')
+
+        self.data[:] = data[:]
+        self.output_channels = channels
+        self.output_dtype = dtype
+        self.output_mapping = mapping
+        self.silent_channels = silent_channels
+        return frames
+

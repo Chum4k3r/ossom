@@ -80,6 +80,9 @@ class _Now(object):
         return self._GMT
 
 
+def now():
+    return _Now()
+
 
 class Logger(object):
     """Simple logger."""
@@ -177,10 +180,10 @@ class Logger(object):
             The amount of bytes written to log file.
 
         """
+        time = now().time
         msg = Logger._randlogs[rd.randint(0, len(Logger._randlogs)-1)] if message is None else message
-        b = self.file.write(f"{_Now().time}\t{msg}\n")
-        return b
-
+        return self.file.write(f"{time}\t{msg}\n")
+        
     def end_log(self):
         """Write the end of logging tag."""
         self.file.write(self.logend)
@@ -203,12 +206,12 @@ class Logger(object):
         return
 
 
-def random_log(logger, timeout):
-    now = time.time()
-    while (now + timeout) > time.time():
+def _random_log(logger, timeout):
+    init = time.time()
+    while (init + timeout) > time.time():
         time.sleep(0.125)
         logger.log()
-    self.end_log()
+    logger.end_log()
     return
 
 if __name__ == '__main__':
@@ -218,9 +221,9 @@ if __name__ == '__main__':
     TITLE = 'Overall Level'
 
     logger = Logger(NAME, EXT, TITLE)
-    random_log(logger, 2.)
+    _random_log(logger, 2.)
     logger.fclose()
 
     logger.reopen()
-    random_log(logger, 3.)
+    _random_log(logger, 3.)
     logger.fclose()
