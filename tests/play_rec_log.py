@@ -103,9 +103,13 @@ if __name__ == "__main__":
         d = next(b)
         RMS = rms(d)
         db = dB(RMS)
-        lgr.log(f'RMS={RMS}  dB={db}')
+        lgr.log(f'Data shape={d.shape}\tRMS={RMS}\tdB={db}')
     lgr.end_log()
     lgr.fclose()
 
     a = r.get_record()  # Retrieves a copy of the recorded audio.
     p(a, blocking=True)
+
+    del r
+    del p
+
