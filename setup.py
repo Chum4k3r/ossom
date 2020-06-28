@@ -21,7 +21,7 @@ settings = {
     'install_requires': ['numpy', 'scipy', 'sounddevice', 'numba'],
     'packages': ['ossom', 'ossom.utils'],
     'package_dir': {'utils': 'ossom'},
-    'package_data': {'tests': ['tests/*.py']}
+    'package_data': {'examples': ['examples/*.py']}
 }
 
 setup(**settings)
