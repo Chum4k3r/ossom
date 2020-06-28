@@ -17,10 +17,12 @@ config.blocksize = 256
 config.dtype = _np.float32().dtype
 config.__dict__['list_devices'] = _sd.query_devices
 
+from . import utils
 from .audio import Audio, AudioBuffer
 from .streamer import Recorder, Player
-from .logger import Logger
+from .monitor import Monitor
+from .logger import Logger, LogMonitor
 # from .config import config
 # from . import wavefile
-from . import utils
 
+__all__ = ['utils', 'Audio', 'AudioBuffer', 'Recorder', 'Player', 'Monitor', 'Logger', 'LogMonitor']

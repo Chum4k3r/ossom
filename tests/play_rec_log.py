@@ -10,9 +10,8 @@ Created on Mon Jun  1 19:27:43 2020.
 import numpy as _np
 import numba as _nb
 # import multiprocessing as _mp
-import time
-from ossom import Recorder, Player, Audio, Logger, config
-from ossom.utils import max_abs, rms, dB
+from ossom import Recorder, Player, Audio, LogMonitor, config
+from ossom.utils import max_abs
 
 
 @_nb.njit
@@ -56,60 +55,47 @@ def noise(gain: float = -6,
     return Audio(data, samplerate, buffersize)
 
 
-# def monitor_loop(arb: AudioRingBuffer, func: callable, running: _mp.Event):
-#     data = _np.zeros((5512, 1))
-#     dtime = round(data.shape[0] / arb.samplerate, 3)
-#     running.wait()
-#     nextTime = time.time() + dtime
-#     while running.is_set() or arb.ready2read:
-#         dif = round(nextTime - time.time(), 3)
-#         if dif > 0.:
-#             time.sleep(dif)
-#         if arb.ready2read < data.shape[0]:
-#             nr = arb.ready2read
-#         else:
-#             nr = data.shape[0]
-#         data[:nr] = arb.read_next(nr)
-#         data.fill(0)
-#         func(data)
-#         nextTime += dtime
-#     return
+def retrieve_device_ids():
+    default = config.device
+    print(config.list_devices())
+    print("\nEscolha os dispositivos separados por vírgula")
+    try:
+        return [int(dev.strip()) for dev in input("No formato IN, OUT: ").split(",")]
+    except ValueError:
+        return default
 
 
 if __name__ == "__main__":
+    # Generate an Audio object of a random white noise
     ng = noise()
 
-    lgr = Logger()
+    # Prepare a monitoring object that stores in a file logger.
+    lgr = LogMonitor()
 
-    print(config.list_devices())
+    # Select default devices.
+    config.device = retrieve_device_ids()
 
-    print("\nEscolha os dispositivos separados por vírgula", end='')
-    try:
-        config.device = [int(dev.strip()) for dev in input("No formato IN, OUT: ").split(",")]
-    except ValueError:
-        pass
-
+    # Create a recorder object to capture audio data.
     r = Recorder()
-    b = r.get_buffer(buffersize=r.samplerate//8)
-    # direct access to Recorder buffer reading 0.125 s of audio on each call to next.
 
+    # Create a player object to playback audio data.
     p = Player()
 
+    # Tells logger which streamer object (player or recorder) to watch and how
+    # many samples to read at each iteration.
+    lgr(r, r.samplerate//8)
+
+    # Plays the white noise
     p(ng)
+    # While capturing audio
     r(ng.duration)
+    # And asks logger to block until recorder has finished
+    lgr.join()
 
-    while r.stream.active:
-        time.sleep(0.125)
-        d = next(b)
-        RMS = rms(d)
-        db = dB(RMS)
-        lgr.log(f'Data shape={d.shape}\tRMS={RMS}\tdB={db}')
-    lgr.end_log()
-    lgr.fclose()
-
-    a = r.get_record()  # Retrieves a copy of the recorded audio.
+    # Retrieves a copy of the recorded audio.
+    a = r.get_record()
+    # Playback the audio.
     p(a, blocking=True)
 
-    del r
-    del p
-
+    # Delete both streamer objects for memory cleanup.
+    del r, p

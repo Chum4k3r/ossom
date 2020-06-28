@@ -8,6 +8,8 @@ Created on Sat Jun  6 00:39:46 2020
 # import json
 import time
 import random as rd
+from ossom import Monitor
+from ossom.utils import rms, dB
 from typing import TextIO
 
 
@@ -183,7 +185,7 @@ class Logger(object):
         time = now().time
         msg = Logger._randlogs[rd.randint(0, len(Logger._randlogs)-1)] if message is None else message
         return self.file.write(f"{time}\t{msg}\n")
-        
+
     def end_log(self):
         """Write the end of logging tag."""
         self.file.write(self.logend)
@@ -203,6 +205,31 @@ class Logger(object):
     def fclose(self):
         """Close the log file. The end of logging tag is written before closing."""
         self.file.close()
+        return
+
+
+class LogMonitor(Logger, Monitor):
+    """File logger based monitor."""
+
+    def __init__(self, name: str = 'common', ext: str = 'log', waittime: float = 0.125,
+                 title: str = 'Título', logend: str = 'Fim.') -> None:
+        Logger.__init__(self, name, ext, title, logend)
+        Monitor.__init__(self, self.do_logging, waittime, tuple())
+        return
+
+    def setup(self):
+        return
+
+    def do_logging(self, buffer):
+        d = next(buffer)
+        RMS = rms(d)
+        db = dB(RMS)
+        self.log(f'Data shape={d.shape}\tRMS={RMS}\tdB={db}')
+        return
+
+    def tear_down(self):
+        self.end_log()
+        self.fclose()
         return
 
 

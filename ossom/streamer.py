@@ -7,7 +7,7 @@ Created on Sun Jun  7 15:37:06 2020
 
 import numpy as _np
 import sounddevice as _sd
-import threading
+import multiprocessing as mp
 from ossom import config, Audio, AudioBuffer
 from typing import List, Union, Tuple
 
@@ -18,7 +18,8 @@ class _Streamer(AudioBuffer):
     def __init__(self, name: str, device: List[int or str], bufsize: int, samplerate: int,
                  channelmap: List[int], blocksize: int, dtype: _np.dtype, loop: bool):
         self.loop = loop
-        self.event = threading.Event()
+        self.finished = mp.Event()
+        self.running = mp.Event()
         self.status = _sd.CallbackFlags()
         self.channels = channelmap.copy()
         self.device = device
@@ -100,17 +101,18 @@ class _Streamer(AudioBuffer):
         return
 
     def finished_callback(self):    # TODO> close stream!
-        self.event.set()
+        self.running.clear()
+        self.finished.set()
         self.reset()
         print(f"Exiting {self}.")
         return
 
     def start(self, blocking: bool = False):
-        self.stop()
-        self.event.clear()
+        if not self.stream.stopped:
+            self.stop()
         self.stream.start()
-        # global _last_callback
-        # _last_callback = self
+        self.running.set()
+        self.finished.clear()
         if blocking:
             self.wait()
         return
@@ -122,14 +124,15 @@ class _Streamer(AudioBuffer):
 
         """
         try:
-            self.event.wait()
+            self.finished.wait()
         finally:
-            self.stream.stop(ignore_errors)
+            self.stop(ignore_errors)
         return self.status if self.status else None
 
     def stop(self, ignore_errors=True):
         """Stop streaming of audio."""
         self.stream.stop(ignore_errors)
+        self.running.clear()
         return
 
     def callback(self):
