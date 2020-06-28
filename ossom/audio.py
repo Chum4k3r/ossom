@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """
+Audio objects.
+
 Created on Fri May 29 16:07:04 2020.
 
 @author: joaovitor
@@ -109,7 +111,7 @@ class Audio(object):
 
     @property
     def bytesize(self) -> int:
-        """Size, in bytes, of whole array. Same as `samplesize * nsamples * nchannels`"""
+        """Size, in bytes, of whole array. Same as `samplesize * nsamples * nchannels`."""
         return self.data.nbytes
 
 
@@ -200,6 +202,7 @@ class AudioBuffer(Audio, sm.SharedMemory):
         return self._full.is_set()
 
     def clear(self):
+        """Set all data to zero."""
         self.data[:] = 0
         return
 
@@ -213,7 +216,7 @@ class AudioBuffer(Audio, sm.SharedMemory):
             The buffer as a simple Audio object.
 
         """
-        return Audio(self.data.copy() if copy else self.data,
+        return Audio(self.data if not copy else self.data.copy(),
                      self.samplerate, buffersize=buffersize if buffersize else self.bufsize)
 
     def write_next(self, data: np.ndarray) -> int or None:

@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """
+Monitoring objects.
+
 Created on Sat Jun 27 20:25:33 2020
 
 @author: joaovitor
@@ -10,6 +12,7 @@ import time
 import multiprocessing as mp
 from ossom import Recorder, Player, Audio
 from typing import Union
+
 
 class Monitor(object):
     """Monitor class."""
@@ -40,7 +43,7 @@ class Monitor(object):
 
     def __call__(self, strm: Union[Recorder, Player] = None, buffersize: int = None):
         """
-        Configures the monitor and starts de process.
+        Configure the monitor and starts de process.
 
         Parameters
         ----------
@@ -56,20 +59,21 @@ class Monitor(object):
         """
         self.running = strm.running
         self.finished = strm.finished
-        self.buffer = strm.get_buffer(buffersize, copy=False)
+        self.buffer = strm.get_buffer(buffersize)
         self.process = mp.Process(target=self.loop, args=(self.buffer, ))
-        self.process.start()
         return
 
     def setup(self):
+        """Any setup step needed to the end monitoring object. Must be overriden on subclasses."""
         pass
 
     def tear_down(self):
+        """Any destroying step needed to finish the end monitoring object. Must be overriden on subclasses."""
         pass
 
     def loop(self, buffer: Audio):
         """
-        The actual loop.
+        Actual monitoring loop.
 
         Parameters
         ----------
@@ -95,14 +99,13 @@ class Monitor(object):
         self.tear_down()
         return
 
-    def join(self):
-        """
-        Finish the parallel process.
+    def start(self):
+        """Start the parallel process."""
+        self.process.start()
+        return
 
-        Returns
-        -------
-        None.
-
-        """
+    def wait(self):
+        """Finish the parallel process."""
         self.process.join()
+        self.process.close()
         return

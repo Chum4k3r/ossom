@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """
+Streaming objects.
+
 Created on Sun Jun  7 15:37:06 2020
 
 @author: joaovitor
@@ -26,9 +28,16 @@ class _Streamer(AudioBuffer):
         AudioBuffer.__init__(self, name, samplerate, bufsize, len(self.channels), blocksize, dtype)
         return
 
+    def __del__(self):
+        self.stream.stop()
+        self.stream.close()
+        self.close()
+        self.unlink()
+        return
+
     @property
     def device(self) -> int or str:
-        """The audio device."""
+        """Audio device."""
         return self._device
 
     @device.setter
@@ -147,11 +156,16 @@ class _Streamer(AudioBuffer):
 class Recorder(_Streamer):
     """Audio recorder object."""
 
-    def __init__(self, name: str = None, device: List[int or str] = config.device[0], samplerate: int = config.samplerate,
-                 bufsize: int = 10*config.samplerate, channelmap: List[int] = [1, 2],
-                 blocksize: int = config.blocksize, dtype: _np.dtype = config.dtype[0], loop: bool = False):
+    def __init__(self, name: str = None,
+                 device: List[int or str] = config.device[0],
+                 samplerate: int = config.samplerate,
+                 bufsize: int = 10*config.samplerate,
+                 channelmap: List[int] = [1, 2],
+                 blocksize: int = config.blocksize,
+                 dtype: _np.dtype = config.dtype[0],
+                 loop: bool = False):
         """
-        Creates an object capable of recording audio using its `__call__` method.
+        Create an object capable of recording audio using its `__call__` method.
 
             >>> r = Recorder()  # creates a recorder object
             >>> r()  # records data during 5 second by default
@@ -182,18 +196,34 @@ class Recorder(_Streamer):
         """
         _Streamer.__init__(self, name, device, bufsize, samplerate, channelmap, blocksize, dtype, loop)
         self.get_stream(_sd.InputStream, self.samplerate, self.nchannels,
-                  self.dtype, self.callback, device=self.device,
-                  latency=config.latency[0])
+                        self.dtype, self.callback, device=self.device,
+                        latency=config.latency[0])
         self.reset()
         return
 
     def __call__(self, tlen: float = None, blocking: bool = False):
+        """
+        Start recording audio data during tlen seconds.
+
+        Parameters
+        ----------
+        tlen : float, optional
+            DESCRIPTION. The default is None.
+        blocking : bool, optional
+            DESCRIPTION. The default is False.
+
+        Returns
+        -------
+        None.
+
+        """
         self.frames = int(_np.ceil(tlen*self.samplerate)) if tlen is not None else self.nsamples
         # self.frames = self.check_out(self.data, recsamples, self.nchannels, self.dtype, self.channels)
         self.start(blocking)
         return
 
     def callback(self, indata, frames, time, status):
+        """Stream callback function."""
         assert len(indata) == frames
         self.callback_enter(status, indata)
         self.read_indata(indata)
@@ -202,10 +232,12 @@ class Recorder(_Streamer):
         return
 
     def reset(self):
+        """Reset the write indexes."""
         self.widx = self.frame = 0
         return
 
     def get_record(self):
+        """Return an Audio object with a copy of last recorded data."""
         return Audio(self.data[:self.frames].copy(), self.samplerate, self.bufsize)
 
     # def check_out(self, out, frames, channels, dtype, mapping):
@@ -237,28 +269,34 @@ class Recorder(_Streamer):
     #     return frames
 
 
-
 class Player(_Streamer):
     """Audio player object."""
 
-    def __init__(self, name: str = None, device: List[int or str] = config.device[0], samplerate: int = config.samplerate,
-                 bufsize: int = 10*config.samplerate, channelmap: List[int] = [1, 2],
-                 blocksize: int = config.blocksize, dtype: _np.dtype = config.dtype[1], loop: bool = False):
+    def __init__(self, name: str = None,
+                 device: List[int or str] = config.device[0],
+                 samplerate: int = config.samplerate,
+                 bufsize: int = 10*config.samplerate,
+                 channelmap: List[int] = [1, 2],
+                 blocksize: int = config.blocksize,
+                 dtype: _np.dtype = config.dtype[1],
+                 loop: bool = False):
         _Streamer.__init__(self, name, device, bufsize, samplerate, channelmap, blocksize, dtype, loop)
         self.get_stream(_sd.OutputStream, self.samplerate, self.channels[-1],
-                         self.dtype, self.callback,
-                         prime_output_buffers_using_stream_callback=False,
-                         latency=config.latency[1])
+                        self.dtype, self.callback,
+                        prime_output_buffers_using_stream_callback=False,
+                        latency=config.latency[1])
         self.reset()
         return
 
     def __call__(self, audio: Audio, blocking: bool = False):
+        """Begin to play audio data."""
         # TODO: Checar se o objeto de áudio realmente é compativel com o reprodutor
         self.frames = self.check_data(audio.data, self.channels, self.device)
         self.start(blocking)
         return
 
     def callback(self, outdata, frames, time, status):
+        """Stream callback function."""
         assert len(outdata) == frames
         self.callback_enter(status, outdata)
         self.write_outdata(outdata)
@@ -267,9 +305,9 @@ class Player(_Streamer):
         return
 
     def reset(self):
+        """Reset reading indexes to zero."""
         self.ridx = self.frame = 0
         return
-
 
     def check_data(self, data, mapping, device):
         """Check data and output mapping."""
@@ -303,4 +341,3 @@ class Player(_Streamer):
         self.output_mapping = mapping  # Streamer have channels
         self.silent_channels = silent_channels
         return frames
-

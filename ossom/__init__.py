@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Ossom
-=====
+Ossom.
 
 Audio IO with easy access to memory buffers for real-time analysis and processing of data.
 """
@@ -21,8 +20,8 @@ from . import utils
 from .audio import Audio, AudioBuffer
 from .streamer import Recorder, Player
 from .monitor import Monitor
-from .logger import Logger, LogMonitor
+from .logger import Logger, now
 # from .config import config
 # from . import wavefile
 
-__all__ = ['utils', 'Audio', 'AudioBuffer', 'Recorder', 'Player', 'Monitor', 'Logger', 'LogMonitor']
+__all__ = ['utils', 'Audio', 'AudioBuffer', 'Recorder', 'Player', 'Monitor', 'Logger', 'now']

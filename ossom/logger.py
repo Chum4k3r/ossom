@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """
+Logging objects.
+
 Created on Sat Jun  6 00:39:46 2020
 
 @author: joaovitor
@@ -8,8 +10,6 @@ Created on Sat Jun  6 00:39:46 2020
 # import json
 import time
 import random as rd
-from ossom import Monitor
-from ossom.utils import rms, dB
 from typing import TextIO
 
 
@@ -83,6 +83,7 @@ class _Now(object):
 
 
 def now():
+    """Return a _Now instance."""
     return _Now()
 
 
@@ -117,12 +118,16 @@ class Logger(object):
         self._title = title
         self._logend = f"\n# {logend}\n{13*'-'}\n\n"
         self._time = _Now()
-        self._header = f'{13*"-"}\n# LOG OUTPUT FILE\n# {self.name}\n# {self.time}\n\n'
+        self._header = f'{13*"-"}\n# LOG OUTPUT FILE\n# {self.name}\n# {self.time}\n\n# {self.title}\n'
         self.fopen()
         return
 
     def __del__(self):
-        self.fclose()
+        """Close underlying file on del statement."""
+        try:
+            self.fclose()
+        except AttributeError:
+            pass
         return
 
     @property
@@ -147,7 +152,7 @@ class Logger(object):
 
     @property
     def header(self) -> str:
-        """Formatted header."""
+        """File header."""
         return self._header
 
     @property
@@ -160,10 +165,14 @@ class Logger(object):
         """File pointer."""
         return self._file
 
-    def print_log(self):
-        """Print the log file content."""
-        self.file.seek(0)
-        print(self.file.read())
+    def fopen(self):
+        """Open the log file, enabling `read` and `write`."""
+        self._file = open(f'{self.name}.{self.ext}', mode='a+')
+        return
+
+    def start_log(self):
+        """Write header to log file."""
+        self.file.write(self.header)
         return
 
     def log(self, message: str = None) -> int:
@@ -191,46 +200,25 @@ class Logger(object):
         self.file.write(self.logend)
         return
 
-    def reopen(self):
-        """Open log file again."""
-        self._file = open(f'{self.name}.{self.ext}', mode='a+')
-        return
-
-    def fopen(self):
-        """Open the log file, enabling `read` and `write`."""
-        self.reopen()
-        self._file.write(self.header)
-        return
-
     def fclose(self):
         """Close the log file. The end of logging tag is written before closing."""
         self.file.close()
+        del self._file
+        return
+
+    def print_log(self):
+        """Print the log file content. File must be opened."""
+        try:
+            self.file.seek(0)
+            print(self.file.read())
+        except AttributeError:
+            self.fopen()
+            self.file.seek(0)
+            print(self.file.read())
+            self.fclose()
         return
 
 
-class LogMonitor(Logger, Monitor):
-    """File logger based monitor."""
-
-    def __init__(self, name: str = 'common', ext: str = 'log', waittime: float = 0.125,
-                 title: str = 'Título', logend: str = 'Fim.') -> None:
-        Logger.__init__(self, name, ext, title, logend)
-        Monitor.__init__(self, self.do_logging, waittime, tuple())
-        return
-
-    def setup(self):
-        return
-
-    def do_logging(self, buffer):
-        d = next(buffer)
-        RMS = rms(d)
-        db = dB(RMS)
-        self.log(f'Data shape={d.shape}\tRMS={RMS}\tdB={db}')
-        return
-
-    def tear_down(self):
-        self.end_log()
-        self.fclose()
-        return
 
 
 def _random_log(logger, timeout):
@@ -240,6 +228,7 @@ def _random_log(logger, timeout):
         logger.log()
     logger.end_log()
     return
+
 
 if __name__ == '__main__':
     NAME = 'log'

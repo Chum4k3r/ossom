@@ -9,9 +9,39 @@ Created on Mon Jun  1 19:27:43 2020.
 
 import numpy as _np
 import numba as _nb
-# import multiprocessing as _mp
-from ossom import Recorder, Player, Audio, LogMonitor, config
-from ossom.utils import max_abs
+from ossom import Recorder, Player, Audio, Logger, Monitor, config
+from ossom.utils import max_abs, rms, dB
+
+
+class LogMonitor(Logger, Monitor):
+    """File logger based monitor."""
+
+    def __init__(self, name: str = 'example', ext: str = 'log', waittime: float = 0.125,
+                 title: str = 'Example logging.', logend: str = 'D End.') -> None:
+        Logger.__init__(self, name, ext, title, logend)
+        self.fclose()  # On windows it fails if the file is open on process start.
+        Monitor.__init__(self, self.do_logging, waittime, tuple())
+        return
+
+    def setup(self):
+        """Open log file."""
+        self.fopen()
+        self.start_log()
+        return
+
+    def do_logging(self, buffer: _np.ndarray):
+        """Process and log."""
+        d = next(buffer)
+        RMS = rms(d)
+        db = dB(RMS)
+        self.log(f'Data shape={d.shape}\tRMS={RMS}\tdB={db}')
+        return
+
+    def tear_down(self):
+        """End the log and close file."""
+        self.end_log()
+        self.fclose()
+        return
 
 
 @_nb.njit
@@ -56,6 +86,7 @@ def noise(gain: float = -6,
 
 
 def retrieve_device_ids():
+    """Select audio IO devices."""
     default = config.device
     print(config.list_devices())
     print("\nEscolha os dispositivos separados por vírgula")
@@ -87,15 +118,28 @@ if __name__ == "__main__":
 
     # Plays the white noise
     p(ng)
+
+    # Start the monitor before the audio streamer
+    lgr.start()
     # While capturing audio
     r(ng.duration)
+
     # And asks logger to block until recorder has finished
-    lgr.join()
+    lgr.wait()
+
+    # Now set the logger to watch the player object
+    lgr(p, p.samplerate//8)
 
     # Retrieves a copy of the recorded audio.
     a = r.get_record()
-    # Playback the audio.
-    p(a, blocking=True)
 
-    # Delete both streamer objects for memory cleanup.
-    del r, p
+    # Start the monitor before the audio streamer
+    lgr.start()
+    # Playback the audio.
+    p(a)
+
+    # Finishes logger services.
+    lgr.wait()
+
+    # Delete objects for memory cleanup. Explicit deleting is necessary.
+    del r, p, lgr
