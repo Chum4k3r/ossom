@@ -31,10 +31,9 @@ class LogMonitor(Logger, Monitor):
 
     def do_logging(self, buffer: _np.ndarray):
         """Process and log."""
-        d = next(buffer)
-        RMS = rms(d)
+        RMS = rms(buffer)
         db = dB(RMS)
-        self.log(f'Data shape={d.shape}\tRMS={RMS}\tdB={db}')
+        self.log(f'Data shape={buffer.shape}\tRMS={RMS}\tdB={db}')
         return
 
     def tear_down(self):
@@ -104,13 +103,13 @@ if __name__ == "__main__":
     lgr = LogMonitor()
 
     # Select default devices.
-    config.device = retrieve_device_ids()
+    # config.device = retrieve_device_ids()
 
     # Create a recorder object to capture audio data.
-    r = Recorder()
+    r = Recorder('Codec')
 
     # Create a player object to playback audio data.
-    p = Player()
+    p = Player('Codec')
 
     # Tells logger which streamer object (player or recorder) to watch and how
     # many samples to read at each iteration.
@@ -127,19 +126,19 @@ if __name__ == "__main__":
     # And asks logger to block until recorder has finished
     lgr.wait()
 
-    # Now set the logger to watch the player object
+    # # Now set the logger to watch the player object
     lgr(p, p.samplerate//8)
 
-    # Retrieves a copy of the recorded audio.
+    # # Retrieves a copy of the recorded audio.
     a = r.get_record()
 
-    # Start the monitor before the audio streamer
+    # # Start the monitor before the audio streamer
     lgr.start()
-    # Playback the audio.
+    # # Playback the audio.
     p(a)
 
-    # Finishes logger services.
+    # # Finishes logger services.
     lgr.wait()
 
     # Delete objects for memory cleanup. Explicit deleting is necessary.
-    del r, p, lgr
+    # del r, p, lgr

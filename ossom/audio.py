@@ -15,7 +15,7 @@ from multiprocessing import shared_memory as sm
 class Audio(object):
     """Audio data interface."""
 
-    def __init__(self, data: np.ndarray, samplerate: int, buffersize: int = 16) -> None:
+    def __init__(self, data: np.ndarray, samplerate: int, blocksize: int = 16) -> None:
         """
         Audio data objects is a representation of a waveform and a sample rate.
 
@@ -34,13 +34,13 @@ class Audio(object):
 
         """
         self._samplerate = int(samplerate)
-        self._bufsize = buffersize
+        self._blocksize = blocksize
         self._data = data.reshape((-1, 1)) if data.ndim < 2 else data
         self._ridx = int()
         return
 
     def __getitem__(self, key):
-        """Route AudioData getitem to numpy.ndarray getitem."""
+        """Route Audio getitem to numpy.ndarray getitem."""
         return np.ndarray.__getitem__(self.data, key)
 
     # def __setitem__(self, key, val):
@@ -53,10 +53,14 @@ class Audio(object):
 
     def __next__(self):
         """Return data from `counter` to `counter` + `bufsize`."""
+        return self.read_next(self.blocksize)
+
+    def read_next(self, blocksize: int):
+        """Return data from `counter` to `counter` + `bufsize`."""
         if self.ridx > self.nsamples:
             raise StopIteration
-        data = self.data[self.ridx:self.ridx+self.bufsize]
-        self.ridx += self.bufsize
+        data = self.data[self.ridx:self.ridx+blocksize]
+        self.ridx += blocksize
         return data
 
     @property
@@ -70,9 +74,9 @@ class Audio(object):
         return
 
     @property
-    def bufsize(self) -> int:
+    def blocksize(self) -> int:
         """Amount of samples read on each call to `next()`."""
-        return self._bufsize
+        return self._blocksize
 
     @property
     def samplerate(self) -> int:
@@ -118,9 +122,9 @@ class Audio(object):
 class AudioBuffer(Audio, sm.SharedMemory):
     """Dados de áudio em memória compartilhada."""
 
-    def __init__(self, name: str = None, samplerate: int = 44100,
-                 nsamples: int = 32, nchannels: int = 1,
-                 buffersize: int = 16, dtype: np.dtype = np.float32) -> None:
+    def __init__(self, name: str, samplerate: int,
+                 buffersize: int, nchannels: int,
+                 blocksize: int, dtype: np.dtype = np.dtype('float32')) -> None:
         """
         Buffer object intended to read and write audio samples.
 
@@ -128,15 +132,14 @@ class AudioBuffer(Audio, sm.SharedMemory):
         ----------
         name : str, optional
             An existing AudioRingBuffer or SharedMemory name.
-            The default is None.
         samplerate : int, optional
-            Audio sampling rate. The default is 44100.
+            Audio sampling rate.
         nsamples : int, optional
-            Total number of samples. The default is 32.
+            Total number of samples.
         nchannels : int, optional
-            Total number of channels. The default is 1.
+            Total number of channels.
         buffersize : int, optional
-            Amount of samples to read on `next` calls. The default is 16.
+            Amount of samples to read on `next` calls..
         dtype : np.dtype, optional
             Sample data type. The default is np.float32.
 
@@ -145,7 +148,7 @@ class AudioBuffer(Audio, sm.SharedMemory):
         None.
 
         """
-        sz = dtype.itemsize * nsamples * nchannels
+        sz = dtype.itemsize * buffersize * nchannels
 
         if name is not None:
             try:
@@ -154,7 +157,7 @@ class AudioBuffer(Audio, sm.SharedMemory):
                 sm.SharedMemory.__init__(self, name, create=True, size=sz)
         else:
             sm.SharedMemory.__init__(self, create=True, size=sz)
-        buffer = np.ndarray((nsamples, nchannels),
+        buffer = np.ndarray((buffersize, nchannels),
                             dtype=dtype, buffer=self.buf)
         Audio.__init__(self, buffer, samplerate, buffersize)
         self._widx = mp.Value('i', int())
@@ -206,7 +209,7 @@ class AudioBuffer(Audio, sm.SharedMemory):
         self.data[:] = 0
         return
 
-    def get_buffer(self, buffersize: int = None, copy: bool = False) -> Audio:
+    def get_buffer(self, blocksize: int = None, copy: bool = False) -> Audio:
         """
         Audio object that points to shared memory buffer.
 
@@ -217,7 +220,7 @@ class AudioBuffer(Audio, sm.SharedMemory):
 
         """
         return Audio(self.data if not copy else self.data.copy(),
-                     self.samplerate, buffersize=buffersize if buffersize else self.bufsize)
+                     self.samplerate, blocksize=blocksize if blocksize else self.blocksize)
 
     def write_next(self, data: np.ndarray) -> int or None:
         """

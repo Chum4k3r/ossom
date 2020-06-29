@@ -41,7 +41,7 @@ class Monitor(object):
         self.args = args
         return
 
-    def __call__(self, strm: Union[Recorder, Player] = None, buffersize: int = None):
+    def __call__(self, strm: Union[Recorder, Player] = None, blocksize: int = None):
         """
         Configure the monitor and starts de process.
 
@@ -59,8 +59,9 @@ class Monitor(object):
         """
         self.running = strm.running
         self.finished = strm.finished
-        self.buffer = strm.get_buffer(buffersize)
-        self.process = mp.Process(target=self.loop, args=(self.buffer, ))
+        self.buffer = strm.get_buffer(blocksize)
+        assert self.buffer.data is strm.data
+        self.process = mp.Process(target=self._loop)
         return
 
     def setup(self):
@@ -71,7 +72,7 @@ class Monitor(object):
         """Any destroying step needed to finish the end monitoring object. Must be overriden on subclasses."""
         pass
 
-    def loop(self, buffer: Audio):
+    def _loop(self):
         """
         Actual monitoring loop.
 
@@ -92,9 +93,9 @@ class Monitor(object):
             sleepTime = self.nextTime - time.time()
             if sleepTime > 0.:
                 time.sleep(sleepTime)
-            self.target(buffer, *self.args)
             if self.finished.is_set():
                 break
+            self.target(next(self.buffer), *self.args)
             self.nextTime += self.waitTime
         self.tear_down()
         return
