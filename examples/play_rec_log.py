@@ -16,11 +16,12 @@ from ossom.utils import max_abs, rms, dB
 class LogMonitor(Logger, Monitor):
     """File logger based monitor."""
 
-    def __init__(self, name: str = 'example', ext: str = 'log', waittime: float = 0.125,
+    def __init__(self, name: str = 'example', ext: str = 'log',
+                 samplerate: int = config.samplerate, waittime: float = 0.125,
                  title: str = 'Example logging.', logend: str = 'D End.') -> None:
         Logger.__init__(self, name, ext, title, logend)
         self.fclose()  # On windows it fails if the file is open on process start.
-        Monitor.__init__(self, self.do_logging, waittime, tuple())
+        Monitor.__init__(self, self.do_logging, samplerate, waittime, tuple())
         return
 
     def setup(self):
@@ -29,11 +30,11 @@ class LogMonitor(Logger, Monitor):
         self.start_log()
         return
 
-    def do_logging(self, buffer: _np.ndarray):
+    def do_logging(self, data):
         """Process and log."""
-        RMS = rms(buffer)
+        RMS = rms(data)
         db = dB(RMS)
-        self.log(f'Data shape={buffer.shape}\tRMS={RMS}\tdB={db}')
+        self.log(f'Data shape={data.shape}\tRMS={RMS}\tdB={db}')
         return
 
     def tear_down(self):
@@ -55,7 +56,7 @@ def _noise(gain: float, samplerate: int, tlen: float, nchannels: int) -> _np.nda
 
 def noise(gain: float = -6,
           samplerate: int = 48000,
-          buffersize: int = 64,
+          blocksize: int = 64,
           tlen: float = 5.0,
           nchannels: int = 2) -> Audio:
     """
@@ -81,7 +82,7 @@ def noise(gain: float = -6,
 
     """
     data = _noise(gain, samplerate, tlen, nchannels)
-    return Audio(data, samplerate, buffersize)
+    return Audio(data, samplerate, blocksize)
 
 
 def retrieve_device_ids():
@@ -106,20 +107,19 @@ if __name__ == "__main__":
     # config.device = retrieve_device_ids()
 
     # Create a recorder object to capture audio data.
-    r = Recorder('Codec')
+    r = Recorder()
 
     # Create a player object to playback audio data.
-    p = Player('Codec')
+    p = Player()
 
     # Tells logger which streamer object (player or recorder) to watch and how
     # many samples to read at each iteration.
     lgr(r, r.samplerate//8)
 
-    # Plays the white noise
-    p(ng)
-
     # Start the monitor before the audio streamer
     lgr.start()
+    # Plays the white noise
+    p(ng)
     # While capturing audio
     r(ng.duration)
 

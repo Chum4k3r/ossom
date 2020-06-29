@@ -73,6 +73,7 @@ class Recorder(_Streamer):
                 self.write_next(r.record(self.blocksize//4))
                 if self.finished.is_set() or self.is_full:
                     break
+            r.flush()
         self.running.clear()
         self.finished.set()
         return

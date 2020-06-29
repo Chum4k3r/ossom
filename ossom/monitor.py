@@ -7,10 +7,10 @@ Created on Sat Jun 27 20:25:33 2020
 @author: joaovitor
 """
 
-# import numpy as np
+import numpy as np
 import time
 import multiprocessing as mp
-from ossom import Recorder, Player, Audio
+from ossom import Recorder, Player, Audio, config
 from typing import Union
 
 
@@ -19,6 +19,7 @@ class Monitor(object):
 
     def __init__(self,
                  target: callable = lambda x: x,
+                 samplerate: int = config.samplerate,
                  waittime: float = 1.,
                  args: tuple = (0,)):
         """
@@ -38,6 +39,8 @@ class Monitor(object):
         """
         self.target = target
         self.waitTime = waittime
+        self.samplerate = samplerate
+        self.readLen = int(np.ceil(waittime * samplerate))
         self.args = args
         return
 
@@ -59,9 +62,9 @@ class Monitor(object):
         """
         self.running = strm.running
         self.finished = strm.finished
-        self.buffer = strm.get_buffer(blocksize)
-        assert self.buffer.data is strm.data
-        self.process = mp.Process(target=self._loop)
+        self._buffer = strm.get_buffer(blocksize=self.readLen)
+        # assert self.buffer.data is strm.data
+        self._process = mp.Process(target=self._loop)
         return
 
     def setup(self):
@@ -88,25 +91,27 @@ class Monitor(object):
         """
         self.setup()
         self.running.wait()
+        time.sleep(0.25)
         self.nextTime = time.time() + self.waitTime
         while self.running.is_set():
             sleepTime = self.nextTime - time.time()
             if sleepTime > 0.:
                 time.sleep(sleepTime)
+            self.target(self._buffer.read_next(self.readLen), *self.args)
+            self.nextTime = time.time() + self.waitTime
             if self.finished.is_set():
                 break
-            self.target(next(self.buffer), *self.args)
-            self.nextTime += self.waitTime
         self.tear_down()
         return
 
     def start(self):
         """Start the parallel process."""
-        self.process.start()
+        self._process.start()
         return
 
     def wait(self):
         """Finish the parallel process."""
-        self.process.join()
-        self.process.close()
+        self._process.join()
+        self._process.close()
+        # self._buffer.close()
         return
