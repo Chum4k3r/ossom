@@ -90,3 +90,19 @@ html_theme = 'sphinx_rtd_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
+
+# -- Extension configuration -------------------------------------------------
+
+from mock import Mock as MagicMock
+
+class Mock(MagicMock):
+    @classmethod
+    def __getattr__(cls, name):
+        return Mock()
+
+    def __eq__(self, other):
+        # so _pa_context_get_state() == PA_CONTEXT_READY
+        return isinstance(other, Mock)
+
+sys.modules.update({'cffi': Mock()})
+
