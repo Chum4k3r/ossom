@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Logging objects.
+Logging interface
+=================
+
+This module provide two classes: `Now` and `Logger`.
+
+The first is just a wrap around time.localtime() with human readable interface of the exact time instant the object is created.
+
+The latter is a simple file logger that uses `Now` instances to record information.
 
 Created on Sat Jun  6 00:39:46 2020
 
@@ -13,8 +20,8 @@ import random as rd
 from typing import TextIO
 
 
-class _Now(object):
-
+class Now(object):
+    """Human readable data about date and time."""
     _keys = ('year', 'month', 'day', 'wday', 'hour', 'min', 'sec')
     _wdays = {0: 'mon', 1: 'tue', 2: 'wed', 3: 'thu', 4: 'fri', 5: 'sat', 6: 'sun'}
 
@@ -26,7 +33,7 @@ class _Now(object):
         self._day = f"0{localtime.tm_mday}" if localtime.tm_mday < 10 else f"{localtime.tm_mday}"
         self._month = f"0{localtime.tm_mon}" if localtime.tm_mon < 10 else f"{localtime.tm_mon}"
         self._year = f"{localtime.tm_year}"
-        self._wday = f"{_Now._wdays[localtime.tm_wday]}"
+        self._wday = f"{Now._wdays[localtime.tm_wday]}"
         self._GMT = f"GMT_{localtime.tm_zone}"
         return
 
@@ -82,31 +89,27 @@ class _Now(object):
         return self._GMT
 
 
-def now():
-    """Return a _Now instance."""
-    return _Now()
-
-
 class Logger(object):
     """Simple logger."""
 
     _randlogs = ['Albatroz', 'Jaguatirica', 'Jibóia', 'Arara', 'Mico', 'Boitatá', 'Boto Cor-de-Rosa']
 
     def __init__(self, name: str = 'common', ext: str = 'log',
-                 title: str = 'Título', logend: str = 'Fim.') -> None:
+                 title: str = 'title', logend: str = 'end.') -> None:
         """
         File based logger.
 
         Parameters
         ----------
         name : str, optional
-            File name. The default is 'log'.
+            File name. The default is 'common'.
         ext : str, optional
-            File extension. The default is 'txt'.
+            File extension. The default is 'log'.
         title : str, optional
             A title or description for the log. The default is 'title'.
         logend : str, optional
-            A tag that represents the end of a logging session. The default is 'End of log.'.
+            A tag that represents the end of a logging session.
+            The default is 'end.'.
 
         Returns
         -------
@@ -117,7 +120,7 @@ class Logger(object):
         self._ext = ext
         self._title = title
         self._logend = f"\n# {logend}\n{13*'-'}\n\n"
-        self._time = _Now()
+        self._time = Now()
         self._header = f'{13*"-"}\n# LOG OUTPUT FILE\n# {self.name}\n# {self.time}\n\n# {self.title}\n'
         self.fopen()
         return
@@ -191,9 +194,10 @@ class Logger(object):
             The amount of bytes written to log file.
 
         """
-        time = now().time
-        msg = Logger._randlogs[rd.randint(0, len(Logger._randlogs)-1)] if message is None else message
-        return self.file.write(f"{time}\t{msg}\n")
+        time = Now().time
+        msg = message if not message is None \
+            else Logger._randlogs[rd.randint(0, len(Logger._randlogs)-1)]
+        return self.file.write(f"{time} : {msg}\n")
 
     def end_log(self):
         """Write the end of logging tag."""
@@ -201,7 +205,7 @@ class Logger(object):
         return
 
     def fclose(self):
-        """Close the log file. The end of logging tag is written before closing."""
+        """Close the log file."""
         self.file.close()
         del self._file
         return
@@ -217,8 +221,6 @@ class Logger(object):
             print(self.file.read())
             self.fclose()
         return
-
-
 
 
 def _random_log(logger, timeout):
