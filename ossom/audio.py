@@ -1,25 +1,36 @@
 # -*- coding: utf-8 -*-
 """
-Audio objects.
+Audio objects
+=============
+
+These classes are designed to provide objects that will handle reading and writing of audio data as numpy arrays.
+
+They are two: `Audio`, which is a read-only object, and `AudioBuffer`, that is a subclass
+of `Audio` and `multiprocessing.shared_memory.SharedMemory`, thus providing a cross-processes data read and write functionality.
 
 Created on Fri May 29 16:07:04 2020.
 
-@author: joaovitor
+@author: João Vitor Gutkoski Paes
 """
 
 import numpy as np
 import multiprocessing as mp
 from multiprocessing import shared_memory as sm
+from ossom import Configurations
+
+
+config = Configurations()
 
 
 class Audio(object):
     """Audio data interface."""
 
-    def __init__(self, data: np.ndarray, samplerate: int, blocksize: int = 16) -> None:
+    def __init__(self, data: np.ndarray, samplerate: int,
+                 blocksize: int = config.blocksize) -> None:
         """
-        Audio data objects is a representation of a waveform and a sample rate.
+        Audio objects are a representation of a waveform and a sample rate.
 
-        They hold the basic information to play sound, or record sound to it.
+        They hold the basic information to play sound.
 
         Parameters
         ----------
@@ -27,6 +38,9 @@ class Audio(object):
             An array containing audio data, or a buffer to be filled with audio.
         samplerate : int
             Audio sample rate, or how many data represent one second of data.
+        blocksize : int, optional
+            Amount of samples to read on each call to `next`.
+            The default is config.blocksize.
 
         Returns
         -------
@@ -43,20 +57,34 @@ class Audio(object):
         """Route Audio getitem to numpy.ndarray getitem."""
         return np.ndarray.__getitem__(self.data, key)
 
-    # def __setitem__(self, key, val):
-    #     """Route AudioData setitem to numpy.ndarray setitem."""
-    #     return np.ndarray.__setitem__(self.data, key, val)
-
     def __iter__(self):
         """Iterate method."""
         return self
 
-    def __next__(self):
-        """Return data from `counter` to `counter` + `bufsize`."""
+    def __next__(self) -> np.ndarray:
+        """Return data from `ridx` to `ridx` + `blocksize`."""
         return self.read_next(self.blocksize)
 
-    def read_next(self, blocksize: int):
-        """Return data from `counter` to `counter` + `bufsize`."""
+    def read_next(self, blocksize: int) -> np.ndarray:
+        """
+        Read data from `ridx` to `ridx` + `blocksize`.
+
+        Parameters
+        ----------
+        blocksize : int
+            The amount of data to read.
+
+        Raises
+        ------
+        StopIteration
+            Unavailable to read more data than `nsamples`.
+
+        Returns
+        -------
+        data : np.ndarray
+            A numpy array with `blocksize` rows and `nchannels` columns.
+
+        """
         if self.ridx > self.nsamples:
             raise StopIteration
         data = self.data[self.ridx:self.ridx+blocksize]
@@ -120,28 +148,28 @@ class Audio(object):
 
 
 class AudioBuffer(Audio, sm.SharedMemory):
-    """Dados de áudio em memória compartilhada."""
+    """Audio data in a shared memory buffer."""
 
     def __init__(self, name: str, samplerate: int,
                  buffersize: int, nchannels: int,
-                 blocksize: int, dtype: np.dtype = np.dtype('float32')) -> None:
+                 blocksize: int, dtype: np.dtype = config.dtype) -> None:
         """
         Buffer object intended to read and write audio samples.
 
         Parameters
         ----------
-        name : str, optional
-            An existing AudioRingBuffer or SharedMemory name.
-        samplerate : int, optional
+        name : str
+            The SharedMemory name, can be None to automatically generate one.
+        samplerate : int
             Audio sampling rate.
-        nsamples : int, optional
+        buffersize : int
             Total number of samples.
-        nchannels : int, optional
+        nchannels : int
             Total number of channels.
-        buffersize : int, optional
-            Amount of samples to read on `next` calls..
-        dtype : np.dtype, optional
-            Sample data type. The default is np.float32.
+        blocksize : int
+            Amount of samples to read on each call to `next`
+        dtype : np.dtype
+            Sample data type. The default is config.dtype.
 
         Returns
         -------
@@ -209,14 +237,21 @@ class AudioBuffer(Audio, sm.SharedMemory):
         self.data[:] = 0
         return
 
-    def get_buffer(self, blocksize: int = None, copy: bool = False) -> Audio:
+    def get_audio(self, blocksize: int = None, copy: bool = False) -> Audio:
         """
-        Audio object that points to shared memory buffer.
+        `Audio` object that points to shared memory buffer, or a copy of it.
+
+        Parameters
+        ----------
+        blocksize : int, optional
+            The read block size. The default is None.
+        copy : bool, optional
+            If set to `True`, the `Audio` is just a copy of the buffer. The default is False.
 
         Returns
         -------
         Audio
-            The buffer as a simple Audio object.
+            The buffer as a read-only Audio object.
 
         """
         return Audio(self.data if not copy else self.data.copy(),
@@ -226,7 +261,8 @@ class AudioBuffer(Audio, sm.SharedMemory):
         """
         Write data to buffer.
 
-        If `widx` gets equal to `nsamples` the `full` Event is set.
+        If `widx` gets equal to `nsamples` the buffer is set to full.
+        Checking can be made using the `is_full` property.
 
         Parameters
         ----------

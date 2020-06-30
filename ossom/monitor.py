@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Monitoring objects.
+Lacks documentation!
 
 Created on Sat Jun 27 20:25:33 2020
 
@@ -10,8 +10,11 @@ Created on Sat Jun 27 20:25:33 2020
 import numpy as np
 import time
 import multiprocessing as mp
-from ossom import Recorder, Player, Audio, config
+from ossom import Recorder, Player, Configurations
 from typing import Union
+
+
+config = Configurations()
 
 
 class Monitor(object):
