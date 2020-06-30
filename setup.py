@@ -18,7 +18,7 @@ settings = {
     'author': 'João Vitor Gutkoski Paes',
     'author_email': 'joao.paes@eac.ufsm.br',
     'license': 'MIT',
-    'install_requires': ['numpy', 'scipy', 'soundcard', 'numba'],
+    'install_requires': ['numpy', 'soundcard', 'numba'],
     'packages': ['ossom', 'ossom.utils'],
     'package_dir': {'utils': 'ossom'},
     'package_data': {'examples': ['examples/*.py']}

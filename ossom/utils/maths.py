@@ -5,7 +5,6 @@ Provide mathematical functions set up to process data from Audio objects.
 Created on Tue May  5 00:34:36 2020
 
 @author: João Vitor Gutkoski Paes
-@email: joaovitor.acustica@gmail.com
 """
 
 import numpy as np

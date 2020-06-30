@@ -2,7 +2,7 @@
 """
 Created on Fri May 29 16:08:22 2020
 
-@author: joaovitor
+@author: João Vitor Gutkoski Paes
 """
 
 import numpy as np

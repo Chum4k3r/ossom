@@ -2,10 +2,9 @@
 """
 Utilities module.
 
-
 Created on Tue May  5 00:31:42 2020
 
-@author: João Vitor G. Paes
+@author: João Vitor Gutkoski Paes
 """
 
 from .colore import ColorStr, colorir, pinta_texto, pinta_fundo

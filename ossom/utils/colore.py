@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Módulo simples para colorir textos
+Simple module to color texts on command line output.
 
-@author: João Vitor G. Paes
+@author: João Vitor Gutkoski Paes
 """
 
 

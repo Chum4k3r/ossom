@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Logging interface
-=================
-
 This module provide two classes: `Now` and `Logger`.
 
 The first is just a wrap around time.localtime() with human readable interface of the exact time instant the object is created.
-
 The latter is a simple file logger that uses `Now` instances to record information.
 
 Created on Sat Jun  6 00:39:46 2020

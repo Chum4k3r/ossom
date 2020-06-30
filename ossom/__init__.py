@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-OsSom
-=====
-
 Audio IO with easy access to memory buffers for real-time analysis and processing of data.
 
-
-
+Author: João Vitor Gutkoski Paes
 """
 
 from . import utils
@@ -20,3 +16,4 @@ __all__ = ['Audio', 'AudioBuffer',
            'Monitor',
            'Configurations',
            'utils']
+

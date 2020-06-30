@@ -4,7 +4,7 @@ Lacks documentation!
 
 Created on Sun Jun 28 21:12:12 2020
 
-@author: joaovitor
+@author: João Vitor Gutkoski Paes
 """
 
 

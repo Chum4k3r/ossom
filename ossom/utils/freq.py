@@ -2,7 +2,7 @@
 """
 Provides frequency and fractional octave frequency bands functionalities.
 
-@author: João Vitor G. Paes
+@author: João Vitor Gutkoski Paes
 """
 
 import numpy as np

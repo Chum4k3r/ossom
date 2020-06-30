@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Configurations
-==============
-
 This module provide a singleton object to hold configurations such as `samplerate`, `blocksize` and any relevant parameter that is necessary to the main `Recorder` and `Player` classes.
 
 These values are used as default case and are available to any OsSom class that might need them.
 
 Created on Sun Jun 28 21:40:13 2020
 
-@author: joaovitor
+@author: João Vitor Gutkoski Paes
 """
 
 

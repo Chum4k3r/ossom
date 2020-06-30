@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-Audio objects
-=============
-
 These classes are designed to provide objects that will handle reading and writing of audio data as numpy arrays.
 
 They are two: `Audio`, which is a read-only object, and `AudioBuffer`, that is a subclass

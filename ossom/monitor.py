@@ -4,7 +4,7 @@ Lacks documentation!
 
 Created on Sat Jun 27 20:25:33 2020
 
-@author: joaovitor
+@author: João Vitor Gutkoski Paes
 """
 
 import numpy as np
