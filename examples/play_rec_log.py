@@ -9,8 +9,11 @@ Created on Mon Jun  1 19:27:43 2020.
 
 import numpy as _np
 import numba as _nb
-from ossom import Recorder, Player, Audio, Logger, Monitor, config
+from ossom import Recorder, Player, Audio, Logger, Monitor, Configurations
 from ossom.utils import max_abs, rms, dB
+
+
+config = Configurations()
 
 
 class LogMonitor(Logger, Monitor):
