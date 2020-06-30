@@ -21,7 +21,13 @@ settings = {
     'install_requires': ['numpy', 'soundcard', 'numba'],
     'packages': ['ossom', 'ossom.utils'],
     'package_dir': {'utils': 'ossom'},
-    'package_data': {'examples': ['examples/*.py']}
+    'package_data': {'examples': ['examples/*.py']},
+    'classifiers': [
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+    ],
+    'python_requires': '>=3.8',
 }
 
 setup(**settings)
