@@ -105,4 +105,3 @@ class Mock(MagicMock):
         return isinstance(other, Mock)
 
 sys.modules.update({'cffi': Mock()})
-

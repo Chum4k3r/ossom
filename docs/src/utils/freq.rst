@@ -6,4 +6,3 @@ Frequency utilities
 .. automodule:: ossom.utils.freq
    :members:
 
-

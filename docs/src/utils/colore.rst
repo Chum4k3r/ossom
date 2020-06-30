@@ -4,6 +4,7 @@ Colore Textos
 =============
 
 .. automodule:: ossom.utils.colore
-   :members:
 
+.. autoclass:: ossom.utils.ColorStr
+   :members:
 
